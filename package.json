@@ -1,0 +1,33 @@
+{
+  "name": "vless-panel",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "pm2": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop vless-panel",
+    "pm2:restart": "pm2 restart vless-panel",
+    "pm2:logs": "pm2 logs vless-panel",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "better-sqlite3-session-store": "^0.1.0",
+    "dotenv": "^17.3.1",
+    "ejs": "^4.0.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "express-session": "^1.19.0",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1",
+    "node-cron": "^4.2.1",
+    "node-ssh": "^13.2.1",
+    "passport": "^0.7.0",
+    "passport-oauth2": "^1.8.0",
+    "uuid": "^13.0.0"
+  }
+}

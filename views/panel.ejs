@@ -1,0 +1,292 @@
+<%- include('partials/head', { title: '节点面板' }) %>
+
+  <!-- 导航 -->
+  <nav class="glass-solid sticky top-0 z-40 px-6 py-3">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center text-sm">🍑</div>
+        <span class="text-white font-semibold hidden sm:block">小姨子的诱惑</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <% if (hasAi) { %><button onclick="toggleAI()" class="text-xs px-3 py-1.5 rounded-full bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+          AI
+        </button><% } %>
+        <img src="<%= user.avatar_url || '' %>" class="w-7 h-7 rounded-full ring-2 ring-white/10 bg-gray-800" alt="" onerror="this.style.display='none'">
+        <span class="text-gray-300 text-sm hidden sm:block"><%= user.name || user.username %></span>
+        <% if (user.is_admin) { %><a href="/admin" class="text-xs px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition">管理</a><% } %>
+        <a href="/auth/logout" class="text-xs px-3 py-1.5 rounded-full glass text-gray-300 hover:text-red-400 transition">退出</a>
+      </div>
+    </div>
+  </nav>
+
+  <% if (announcement) { %>
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
+    <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+      <div class="px-4 py-2 flex items-center gap-2 text-xs">
+        <span class="text-rose-400 shrink-0">📢</span>
+        <div class="marquee-wrap">
+          <span class="animate-marquee text-rose-200/80"><%= announcement %></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 流量概览 -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#f43f5e">
+        <p class="text-gray-500 text-xs mb-1">全局总流量</p>
+        <p class="text-white text-lg font-bold"><%= formatBytes(globalTraffic.total_up + globalTraffic.total_down) %></p>
+      </div>
+      <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#fb923c">
+        <p class="text-gray-500 text-xs mb-1">我的流量</p>
+        <p class="text-orange-400 text-lg font-bold"><%= formatBytes(traffic.total_up + traffic.total_down) %></p>
+      </div>
+      <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#22c55e">
+        <p class="text-gray-500 text-xs mb-1">上传</p>
+        <p class="text-emerald-400 text-lg font-bold"><%= formatBytes(traffic.total_up) %></p>
+      </div>
+      <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#f59e0b">
+        <p class="text-gray-500 text-xs mb-1">下载</p>
+        <p class="text-amber-400 text-lg font-bold"><%= formatBytes(traffic.total_down) %></p>
+      </div>
+    </div>
+
+    <!-- 订阅链接 -->
+    <div class="glass rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-white font-semibold text-sm">📡 个人订阅</h2>
+        <span class="text-white text-xs">每日凌晨3点自动更换UUID，每7天更换订阅链接</span>
+      </div>
+      <div class="flex gap-2">
+        <input type="text" readonly value="<%= subUrl %>" id="sub-link"
+               class="flex-1 bg-black/30 text-rose-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
+        <button onclick="copySubLink()" class="bg-rose-600 hover:bg-rose-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
+      </div>
+    </div>
+
+    <!-- 节点列表 -->
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-white font-semibold">🌐 可用节点</h2>
+        <span class="text-gray-600 text-xs"><%= userNodes.length %> 个节点</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <% if (userNodes.length === 0) { %>
+          <div class="glass rounded-2xl p-8 col-span-full text-center">
+            <p class="text-gray-500">暂无可用节点</p>
+          </div>
+        <% } else { userNodes.forEach(function(n) { %>
+          <div class="glass rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-white font-medium text-sm"><%= n.name %></h3>
+              <% if (n.remark && n.remark.includes('被墙')) { %>
+                <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" title="被墙"></span>
+              <% } else if (n.remark && n.remark.includes('离线')) { %>
+                <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" title="离线"></span>
+              <% } else if (n.is_active) { %>
+                <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" title="在线"></span>
+              <% } else { %>
+                <span class="inline-block w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.6)]" title="检测中"></span>
+              <% } %>
+            </div>
+            <% if (n.region) { %><p class="text-gray-500 text-xs mb-3"><%= n.region %></p><% } %>
+            <div class="bg-black/30 rounded-lg p-2.5 mb-2.5">
+              <code class="text-rose-300 text-[11px] break-all select-all font-mono" id="link-<%= n.id %>"><%= n.link %></code>
+            </div>
+            <button onclick="copyLink(<%= n.id %>)" class="w-full bg-rose-600/80 hover:bg-rose-500 text-white text-xs py-2 rounded-lg transition">复制链接</button>
+          </div>
+        <% }); } %>
+      </div>
+    </div>
+  </main>
+
+  <!-- AI 浮窗面板 -->
+  <div id="ai-panel" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="rounded-2xl shadow-2xl flex w-[calc(100%-2rem)] h-[calc(100%-2rem)] max-w-6xl overflow-hidden" style="background:#1a1520;border:1px solid rgba(255,255,255,0.08)">
+      <!-- 左侧会话列表 -->
+      <div class="w-56 flex-shrink-0 border-r border-white/5 flex flex-col" style="background:#13101a">
+        <div class="p-3 border-b border-white/5">
+          <button onclick="newSession()" class="w-full bg-rose-600 hover:bg-rose-500 text-white text-xs py-2 rounded-xl transition flex items-center justify-center gap-1">＋ 新对话</button>
+        </div>
+        <div id="session-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+      </div>
+      <!-- 右侧聊天区 -->
+      <div class="flex-1 flex flex-col min-w-0">
+        <div class="flex items-center justify-between p-4 border-b border-white/5">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+            <span class="text-white text-sm font-semibold" id="chat-title">AI 助手</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <select id="ai-model" class="bg-black/30 text-gray-300 text-xs px-2 py-1 rounded-lg border border-white/10">
+              <option value="">加载中...</option>
+            </select>
+            <button onclick="toggleAI()" class="text-gray-500 hover:text-white transition text-lg">✕</button>
+          </div>
+        </div>
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
+          <div class="text-center text-gray-600 text-xs py-8">选择或新建一个对话开始～</div>
+        </div>
+        <div class="p-3 border-t border-white/5">
+          <div class="flex gap-2">
+            <input type="text" id="ai-input" placeholder="输入你的问题..."
+                   class="flex-1 bg-black/30 text-white text-sm px-3 py-2 rounded-xl border border-white/10"
+                   onkeydown="if(event.key==='Enter')askAI()">
+            <button onclick="askAI()" id="ai-btn" class="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm transition">发送</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function copyLink(id) {
+      navigator.clipboard.writeText(document.getElementById('link-' + id).textContent).then(() => toast('✅ 链接已复制'));
+    }
+    function copySubLink() {
+      navigator.clipboard.writeText(document.getElementById('sub-link').value).then(() => toast('✅ 订阅链接已复制'));
+    }
+    function toggleAI() {
+      const panel = document.getElementById('ai-panel');
+      panel.classList.toggle('hidden');
+      if (!panel.classList.contains('hidden') && !window._aiLoaded) { window._aiLoaded = true; initAI(); }
+    }
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    let currentSession = null;
+
+    async function initAI() {
+      // 加载模型
+      try {
+        const res = await fetch('/ai/models');
+        const models = await res.json();
+        const select = document.getElementById('ai-model');
+        if (models.length === 0) {
+          select.innerHTML = '<option value="">未配置模型</option>';
+          document.getElementById('ai-btn').disabled = true;
+          document.getElementById('ai-btn').classList.add('opacity-50');
+        } else {
+          select.innerHTML = models.map(m => '<option value="' + m.id + '">' + m.name + '</option>').join('');
+          const last = localStorage.getItem('ai-model');
+          if (last && models.find(m => String(m.id) === last)) select.value = last;
+        }
+      } catch(e) {
+        document.getElementById('ai-model').innerHTML = '<option value="">加载失败</option>';
+      }
+      // 加载会话列表
+      await loadSessions();
+    }
+
+    async function loadSessions() {
+      const res = await fetch('/ai/sessions');
+      const sessions = await res.json();
+      const list = document.getElementById('session-list');
+      if (sessions.length === 0) {
+        list.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">暂无对话</p>';
+        return;
+      }
+      list.innerHTML = sessions.map(s =>
+        '<div class="group flex items-center rounded-lg px-3 py-2 cursor-pointer transition text-xs ' +
+        (currentSession === s.id ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200') +
+        '" onclick="switchSession(\'' + s.id + '\')">' +
+        '<span class="flex-1 truncate">' + escapeHtml(s.title) + '</span>' +
+        '<button onclick="event.stopPropagation();deleteSession(\'' + s.id + '\')" class="hidden group-hover:block text-gray-600 hover:text-red-400 ml-1 flex-shrink-0">✕</button>' +
+        '</div>'
+      ).join('');
+    }
+
+    async function newSession() {
+      const res = await fetch('/ai/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const session = await res.json();
+      currentSession = session.id;
+      document.getElementById('chat-title').textContent = '新对话';
+      document.getElementById('chat-messages').innerHTML = '<div class="text-center text-gray-600 text-xs py-8">有什么问题都可以问我～</div>';
+      await loadSessions();
+    }
+
+    async function switchSession(id) {
+      currentSession = id;
+      await loadSessions();
+      const container = document.getElementById('chat-messages');
+      container.innerHTML = '<div class="text-center text-gray-600 text-xs py-2">加载中...</div>';
+      const res = await fetch('/ai/chat/history?session=' + id);
+      const history = await res.json();
+      if (history.length === 0) {
+        container.innerHTML = '<div class="text-center text-gray-600 text-xs py-8">有什么问题都可以问我～</div>';
+      } else {
+        container.innerHTML = '';
+        history.forEach(m => {
+          const isUser = m.role === 'user';
+          container.insertAdjacentHTML('beforeend',
+            '<div class="flex ' + (isUser ? 'justify-end' : 'justify-start') + '"><div class="' +
+            (isUser ? 'bg-rose-600/80 text-white' : 'glass text-gray-200') +
+            ' text-sm px-3 py-2 rounded-xl ' + (isUser ? 'rounded-tr-sm' : 'rounded-tl-sm') +
+            ' max-w-[80%] whitespace-pre-wrap">' + escapeHtml(m.content) + '</div></div>');
+        });
+        container.scrollTop = container.scrollHeight;
+        // 用第一条消息更新标题显示
+        document.getElementById('chat-title').textContent = history[0].content.slice(0, 20) + (history[0].content.length > 20 ? '...' : '');
+      }
+    }
+
+    async function deleteSession(id) {
+      if (!await _confirm('删除此对话？')) return;
+      await fetch('/ai/sessions/' + id, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
+      if (currentSession === id) {
+        currentSession = null;
+        document.getElementById('chat-title').textContent = 'AI 助手';
+        document.getElementById('chat-messages').innerHTML = '<div class="text-center text-gray-600 text-xs py-8">选择或新建一个对话开始～</div>';
+      }
+      await loadSessions();
+    }
+
+    async function askAI() {
+      if (!currentSession) { toast('⚠️ 请先新建一个对话'); return; }
+      const input = document.getElementById('ai-input');
+      const btn = document.getElementById('ai-btn');
+      const container = document.getElementById('chat-messages');
+      const provider = document.getElementById('ai-model').value;
+      const message = input.value.trim();
+      if (!message || !provider) return;
+      localStorage.setItem('ai-model', provider);
+
+      if (container.querySelector('.text-center')) container.innerHTML = '';
+
+      input.value = '';
+      btn.disabled = true; btn.textContent = '⏳';
+
+      container.insertAdjacentHTML('beforeend',
+        '<div class="flex justify-end"><div class="bg-rose-600/80 text-white text-sm px-3 py-2 rounded-xl rounded-tr-sm max-w-[80%]">' + escapeHtml(message) + '</div></div>');
+
+      const aiDiv = document.createElement('div');
+      aiDiv.className = 'flex justify-start';
+      const aiContent = document.createElement('div');
+      aiContent.className = 'glass text-gray-200 text-sm px-3 py-2 rounded-xl rounded-tl-sm max-w-[80%] whitespace-pre-wrap';
+      aiDiv.appendChild(aiContent);
+      container.appendChild(aiDiv);
+      container.scrollTop = container.scrollHeight;
+
+      try {
+        const evtSource = new EventSource('/ai/chat/stream?message=' + encodeURIComponent(message) + '&provider=' + provider + '&session=' + currentSession);
+        evtSource.onmessage = (e) => {
+          if (e.data === '[DONE]') { evtSource.close(); btn.disabled = false; btn.textContent = '发送'; loadSessions(); return; }
+          try {
+            const data = JSON.parse(e.data);
+            if (data.error) { aiContent.textContent += data.error; evtSource.close(); btn.disabled = false; btn.textContent = '发送'; return; }
+            if (data.text) aiContent.textContent += data.text;
+            container.scrollTop = container.scrollHeight;
+          } catch {}
+        };
+        evtSource.onerror = () => {
+          evtSource.close();
+          if (!aiContent.textContent) aiContent.textContent = 'AI 服务连接失败，请检查配置。';
+          btn.disabled = false; btn.textContent = '发送';
+        };
+      } catch (e) { aiContent.textContent = '请求失败'; btn.disabled = false; btn.textContent = '发送'; }
+    }
+  </script>
+<%- include('partials/foot') %>

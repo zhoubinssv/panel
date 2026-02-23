@@ -1,0 +1,736 @@
+const Database = require('better-sqlite3');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+const { encrypt, decrypt } = require('../utils/crypto');
+
+const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const DB_PATH = path.join(DATA_DIR, 'panel.db');
+
+let db;
+
+function getDb() {
+  if (!db) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    db = new Database(DB_PATH);
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+    initTables();
+  }
+  return db;
+}
+
+function initTables() {
+  db.exec(`
+    -- 用户表
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY,
+      nodeloc_id INTEGER UNIQUE NOT NULL,
+      username TEXT NOT NULL,
+      name TEXT,
+      avatar_url TEXT,
+      trust_level INTEGER DEFAULT 0,
+      email TEXT,
+      sub_token TEXT UNIQUE NOT NULL,
+      is_admin INTEGER DEFAULT 0,
+      is_blocked INTEGER DEFAULT 0,
+      max_devices INTEGER DEFAULT 3,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_login TEXT
+    );
+
+    -- 白名单表
+    CREATE TABLE IF NOT EXISTS whitelist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      added_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- 节点表
+    CREATE TABLE IF NOT EXISTS nodes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      host TEXT NOT NULL,
+      port INTEGER NOT NULL,
+      uuid TEXT NOT NULL,
+      protocol TEXT DEFAULT 'vless',
+      network TEXT DEFAULT 'tcp',
+      security TEXT DEFAULT 'none',
+      ssh_host TEXT,
+      ssh_port INTEGER DEFAULT 22,
+      ssh_user TEXT DEFAULT 'root',
+      ssh_password TEXT,
+      ssh_key_path TEXT,
+      xray_config_path TEXT DEFAULT '/usr/local/etc/xray/config.json',
+      socks5_host TEXT,
+      socks5_port INTEGER DEFAULT 1080,
+      socks5_user TEXT,
+      socks5_pass TEXT,
+      is_active INTEGER DEFAULT 1,
+      region TEXT,
+      remark TEXT,
+      last_rotated TEXT,
+      last_check TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- 审计日志
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      action TEXT NOT NULL,
+      detail TEXT,
+      ip TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    -- 系统配置
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    -- 用户-节点 UUID 映射表
+    CREATE TABLE IF NOT EXISTS user_node_uuid (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      node_id INTEGER NOT NULL,
+      uuid TEXT NOT NULL,
+      UNIQUE(user_id, node_id),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
+    );
+
+    -- 流量统计表
+    CREATE TABLE IF NOT EXISTS traffic (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      node_id INTEGER NOT NULL,
+      uplink INTEGER DEFAULT 0,
+      downlink INTEGER DEFAULT 0,
+      recorded_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
+    );
+
+    -- AI 服务商配置表
+    CREATE TABLE IF NOT EXISTS ai_providers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL CHECK(type IN ('openai', 'gemini', 'claude')),
+      name TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      api_key TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      model_name TEXT NOT NULL DEFAULT '',
+      enabled INTEGER DEFAULT 1,
+      priority INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- AI 对话历史表
+    CREATE TABLE IF NOT EXISTS ai_chats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      session_id TEXT NOT NULL DEFAULT 'default',
+      role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+      content TEXT NOT NULL,
+      provider_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    -- AI 会话表
+    CREATE TABLE IF NOT EXISTS ai_sessions (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL DEFAULT '新对话',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    -- 流量汇总表（按天）
+    CREATE TABLE IF NOT EXISTS traffic_daily (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      node_id INTEGER,
+      date TEXT NOT NULL,
+      uplink INTEGER DEFAULT 0,
+      downlink INTEGER DEFAULT 0,
+      UNIQUE(user_id, node_id, date),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    -- 订阅拉取 IP 记录
+    CREATE TABLE IF NOT EXISTS sub_access_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      ip TEXT NOT NULL,
+      ua TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
+  // 运维诊断表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ops_diagnosis (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      node_id INTEGER NOT NULL,
+      status TEXT DEFAULT 'pending',
+      diag_info TEXT,
+      ai_analysis TEXT,
+      fix_commands TEXT,
+      fix_result TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      resolved_at TEXT,
+      FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 初始化默认配置
+  const upsert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+  upsert.run('whitelist_enabled', 'false');
+  upsert.run('announcement', '');
+  upsert.run('rotate_cron', '0 3 * * *');
+  upsert.run('rotate_port_min', '10000');
+  upsert.run('rotate_port_max', '60000');
+
+  // 迁移：给 nodes 表补充 socks5 字段（已有表可能缺少）
+  const cols = db.prepare("PRAGMA table_info(nodes)").all().map(c => c.name);
+  if (!cols.includes('socks5_host')) {
+    db.exec(`
+      ALTER TABLE nodes ADD COLUMN socks5_host TEXT;
+      ALTER TABLE nodes ADD COLUMN socks5_port INTEGER DEFAULT 1080;
+      ALTER TABLE nodes ADD COLUMN socks5_user TEXT;
+      ALTER TABLE nodes ADD COLUMN socks5_pass TEXT;
+    `);
+  }
+  if (!cols.includes('min_level')) {
+    db.exec("ALTER TABLE nodes ADD COLUMN min_level INTEGER DEFAULT 0");
+  }
+  if (!cols.includes('reality_private_key')) {
+    db.exec(`
+      ALTER TABLE nodes ADD COLUMN reality_private_key TEXT;
+      ALTER TABLE nodes ADD COLUMN reality_public_key TEXT;
+      ALTER TABLE nodes ADD COLUMN reality_short_id TEXT;
+      ALTER TABLE nodes ADD COLUMN sni TEXT DEFAULT 'www.microsoft.com';
+    `);
+  }
+
+  // 迁移：白名单表改用 nodeloc_id
+  const wlCols = db.prepare("PRAGMA table_info(whitelist)").all().map(c => c.name);
+  if (!wlCols.includes('nodeloc_id')) {
+    db.exec("DROP TABLE IF EXISTS whitelist");
+    db.exec(`CREATE TABLE whitelist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nodeloc_id INTEGER UNIQUE NOT NULL,
+      added_at TEXT DEFAULT (datetime('now'))
+    )`);
+  }
+
+  // 迁移：traffic_daily 去掉 CASCADE，改为 SET NULL 保留流量数据
+  const tdFk = db.prepare("PRAGMA foreign_key_list(traffic_daily)").all();
+  const hasCascade = tdFk.some(f => f.table === 'nodes' && f.on_delete === 'CASCADE');
+  if (hasCascade) {
+    db.exec("PRAGMA foreign_keys=OFF");
+    db.exec(`
+      CREATE TABLE traffic_daily_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        node_id INTEGER,
+        date TEXT NOT NULL,
+        uplink INTEGER DEFAULT 0,
+        downlink INTEGER DEFAULT 0,
+        UNIQUE(user_id, node_id, date),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+      INSERT INTO traffic_daily_new SELECT * FROM traffic_daily;
+      DROP TABLE traffic_daily;
+      ALTER TABLE traffic_daily_new RENAME TO traffic_daily;
+    `);
+    db.exec("PRAGMA foreign_keys=ON");
+  }
+
+  // 迁移：给 ai_providers 表补充 system_prompt 字段
+  const aiCols = db.prepare("PRAGMA table_info(ai_providers)").all().map(c => c.name);
+  if (!aiCols.includes('system_prompt')) {
+    db.exec("ALTER TABLE ai_providers ADD COLUMN system_prompt TEXT DEFAULT ''");
+  }
+
+  // 迁移：给 ai_chats 表补充 session_id 字段
+  const chatCols = db.prepare("PRAGMA table_info(ai_chats)").all().map(c => c.name);
+  if (!chatCols.includes('session_id')) {
+    db.exec("ALTER TABLE ai_chats ADD COLUMN session_id TEXT NOT NULL DEFAULT 'default'");
+  }
+  if (!chatCols.includes('provider_id')) {
+    db.exec("ALTER TABLE ai_chats ADD COLUMN provider_id INTEGER");
+  }
+}
+
+// ========== 用户操作 ==========
+
+function findOrCreateUser(profile) {
+  const existing = getDb().prepare('SELECT * FROM users WHERE nodeloc_id = ?').get(profile.id);
+  if (existing) {
+    getDb().prepare(`
+      UPDATE users SET username = ?, name = ?, avatar_url = ?, trust_level = ?, email = ?, last_login = datetime('now')
+      WHERE nodeloc_id = ?
+    `).run(profile.username, profile.name, profile.avatar_url, profile.trust_level, profile.email, profile.id);
+    return getDb().prepare('SELECT * FROM users WHERE nodeloc_id = ?').get(profile.id);
+  }
+
+  const subToken = uuidv4();
+  // 第一个注册的用户自动成为管理员
+  const userCount = getDb().prepare('SELECT COUNT(*) as count FROM users').get().count;
+  const isAdmin = userCount === 0 ? 1 : 0;
+
+  getDb().prepare(`
+    INSERT INTO users (nodeloc_id, username, name, avatar_url, trust_level, email, sub_token, is_admin, last_login)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `).run(profile.id, profile.username, profile.name, profile.avatar_url, profile.trust_level, profile.email, subToken, isAdmin);
+
+  const newUser = getDb().prepare('SELECT * FROM users WHERE nodeloc_id = ?').get(profile.id);
+  if (isAdmin) console.log(`👑 首位用户 ${profile.username} 已自动设为管理员`);
+
+  // 为新用户在所有节点生成 UUID
+  ensureUserHasAllNodeUuids(newUser.id);
+
+  return newUser;
+}
+
+function getUserBySubToken(token) {
+  return getDb().prepare('SELECT * FROM users WHERE sub_token = ? AND is_blocked = 0').get(token);
+}
+
+function getUserById(id) {
+  return getDb().prepare('SELECT * FROM users WHERE id = ?').get(id);
+}
+
+function getAllUsers() {
+  return getDb().prepare(`
+    SELECT u.*, COALESCE(SUM(t.uplink),0)+COALESCE(SUM(t.downlink),0) as total_traffic
+    FROM users u LEFT JOIN traffic_daily t ON u.id = t.user_id
+    GROUP BY u.id ORDER BY u.last_login DESC
+  `).all();
+}
+
+function blockUser(id, blocked) {
+  getDb().prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(blocked ? 1 : 0, id);
+}
+
+function resetSubToken(userId) {
+  const newToken = uuidv4();
+  getDb().prepare('UPDATE users SET sub_token = ? WHERE id = ?').run(newToken, userId);
+  return newToken;
+}
+
+// ========== 白名单操作（节点访问白名单）==========
+
+function isInWhitelist(nodeloc_id) {
+  return !!getDb().prepare('SELECT 1 FROM whitelist WHERE nodeloc_id = ?').get(nodeloc_id);
+}
+
+function getWhitelist() {
+  return getDb().prepare(`
+    SELECT w.*, u.username, u.name FROM whitelist w
+    LEFT JOIN users u ON w.nodeloc_id = u.nodeloc_id
+    ORDER BY w.added_at DESC
+  `).all();
+}
+
+function addToWhitelist(nodeloc_id) {
+  getDb().prepare('INSERT OR IGNORE INTO whitelist (nodeloc_id) VALUES (?)').run(nodeloc_id);
+}
+
+function removeFromWhitelist(nodeloc_id) {
+  getDb().prepare('DELETE FROM whitelist WHERE nodeloc_id = ?').run(nodeloc_id);
+}
+
+// ========== 节点操作 ==========
+
+// 解密节点敏感字段
+function decryptNode(node) {
+  if (!node) return node;
+  node.ssh_password = decrypt(node.ssh_password);
+  node.socks5_pass = decrypt(node.socks5_pass);
+  return node;
+}
+
+function getAllNodes(activeOnly = false) {
+  const rows = activeOnly
+    ? getDb().prepare('SELECT * FROM nodes WHERE is_active = 1 ORDER BY region, name').all()
+    : getDb().prepare('SELECT * FROM nodes ORDER BY is_active DESC, region, name').all();
+  return rows.map(decryptNode);
+}
+
+function getNodeById(id) {
+  return decryptNode(getDb().prepare('SELECT * FROM nodes WHERE id = ?').get(id));
+}
+
+function addNode(node) {
+  const stmt = getDb().prepare(`
+    INSERT INTO nodes (name, host, port, uuid, protocol, network, security, ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_path, xray_config_path, socks5_host, socks5_port, socks5_user, socks5_pass, is_active, region, remark)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  return stmt.run(
+    node.name, node.host, node.port, node.uuid,
+    node.protocol || 'vless', node.network || 'tcp', node.security || 'none',
+    node.ssh_host, node.ssh_port || 22, node.ssh_user || 'root',
+    encrypt(node.ssh_password) || null, node.ssh_key_path,
+    node.xray_config_path || '/usr/local/etc/xray/config.json',
+    node.socks5_host || null, node.socks5_port || 1080,
+    node.socks5_user || null, encrypt(node.socks5_pass) || null,
+    node.is_active !== undefined ? node.is_active : 1,
+    node.region, node.remark
+  );
+}
+
+function updateNode(id, fields) {
+  const allowed = ['name','host','port','uuid','ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_path','region','remark','is_active','last_check','last_rotated','socks5_host','socks5_port','socks5_user','socks5_pass','min_level','reality_private_key','reality_public_key','reality_short_id','sni'];
+  const safe = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)));
+  if (Object.keys(safe).length === 0) return;
+  const sets = Object.keys(safe).map(k => `${k} = ?`).join(', ');
+  const values = Object.values(safe);
+  getDb().prepare(`UPDATE nodes SET ${sets} WHERE id = ?`).run(...values, id);
+}
+
+function deleteNode(id) {
+  getDb().prepare('DELETE FROM nodes WHERE id = ?').run(id);
+}
+
+function updateNodeAfterRotation(id, newUuid, newPort) {
+  getDb().prepare(`
+    UPDATE nodes SET uuid = ?, port = ?, last_rotated = datetime('now') WHERE id = ?
+  `).run(newUuid, newPort, id);
+}
+
+// ========== 审计日志 ==========
+
+function addAuditLog(userId, action, detail, ip) {
+  getDb().prepare('INSERT INTO audit_log (user_id, action, detail, ip) VALUES (?, ?, ?, ?)').run(userId, action, detail, ip);
+}
+
+function getAuditLogs(limit = 50, offset = 0) {
+  const rows = getDb().prepare(`
+    SELECT a.*, u.username FROM audit_log a
+    LEFT JOIN users u ON a.user_id = u.id
+    ORDER BY a.created_at DESC LIMIT ? OFFSET ?
+  `).all(limit, offset);
+  const total = getDb().prepare('SELECT COUNT(*) as c FROM audit_log').get().c;
+  return { rows, total };
+}
+
+function clearAuditLogs() {
+  getDb().prepare('DELETE FROM audit_log').run();
+}
+
+// ========== 系统配置 ==========
+
+function getSetting(key) {
+  const row = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? row.value : null;
+}
+
+function setSetting(key, value) {
+  getDb().prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
+}
+
+// ========== 用户-节点 UUID 映射 ==========
+
+// 获取或创建用户在某节点的 UUID
+function getUserNodeUuid(userId, nodeId) {
+  let row = getDb().prepare('SELECT * FROM user_node_uuid WHERE user_id = ? AND node_id = ?').get(userId, nodeId);
+  if (!row) {
+    const newUuid = uuidv4();
+    getDb().prepare('INSERT INTO user_node_uuid (user_id, node_id, uuid) VALUES (?, ?, ?)').run(userId, nodeId, newUuid);
+    row = { user_id: userId, node_id: nodeId, uuid: newUuid };
+  }
+  return row;
+}
+
+// 获取用户在所有节点的 UUID
+function getUserAllNodeUuids(userId) {
+  return getDb().prepare('SELECT un.*, n.name as node_name, n.host, n.port FROM user_node_uuid un JOIN nodes n ON un.node_id = n.id WHERE un.user_id = ?').all(userId);
+}
+
+// 获取某节点的所有用户 UUID（用于生成 xray 配置）
+function getNodeAllUserUuids(nodeId) {
+  return getDb().prepare(`
+    SELECT un.*, u.username FROM user_node_uuid un
+    JOIN users u ON un.user_id = u.id
+    JOIN nodes n ON un.node_id = n.id
+    LEFT JOIN whitelist w ON u.nodeloc_id = w.nodeloc_id
+    WHERE un.node_id = ? AND u.is_blocked = 0
+      AND (w.nodeloc_id IS NOT NULL OR u.trust_level >= n.min_level)
+  `).all(nodeId);
+}
+
+// 为所有用户在指定节点生成 UUID
+function ensureAllUsersHaveUuid(nodeId) {
+  const users = getAllUsers();
+  const stmt = getDb().prepare('INSERT OR IGNORE INTO user_node_uuid (user_id, node_id, uuid) VALUES (?, ?, ?)');
+  const insertMany = getDb().transaction((users) => {
+    for (const user of users) {
+      stmt.run(user.id, nodeId, uuidv4());
+    }
+  });
+  insertMany(users);
+}
+
+// 为新用户在所有节点生成 UUID
+function ensureUserHasAllNodeUuids(userId) {
+  const nodes = getAllNodes();
+  const stmt = getDb().prepare('INSERT OR IGNORE INTO user_node_uuid (user_id, node_id, uuid) VALUES (?, ?, ?)');
+  const insertMany = getDb().transaction((nodes) => {
+    for (const node of nodes) {
+      stmt.run(userId, node.id, uuidv4());
+    }
+  });
+  insertMany(nodes);
+}
+
+// 轮换所有用户在所有节点的 UUID
+function rotateAllUserNodeUuids() {
+  const rows = getDb().prepare('SELECT id FROM user_node_uuid').all();
+  const stmt = getDb().prepare('UPDATE user_node_uuid SET uuid = ? WHERE id = ?');
+  const updateMany = getDb().transaction((rows) => {
+    for (const row of rows) {
+      stmt.run(uuidv4(), row.id);
+    }
+  });
+  updateMany(rows);
+  return rows.length;
+}
+
+// ========== 流量统计 ==========
+
+function recordTraffic(userId, nodeId, uplink, downlink) {
+  getDb().prepare('INSERT INTO traffic (user_id, node_id, uplink, downlink) VALUES (?, ?, ?, ?)').run(userId, nodeId, uplink, downlink);
+
+  // 同时更新每日汇总
+  const today = new Date().toISOString().split('T')[0];
+  getDb().prepare(`
+    INSERT INTO traffic_daily (user_id, node_id, date, uplink, downlink)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, node_id, date) DO UPDATE SET
+      uplink = uplink + excluded.uplink,
+      downlink = downlink + excluded.downlink
+  `).run(userId, nodeId, today, uplink, downlink);
+}
+
+// 获取用户总流量
+function getUserTraffic(userId) {
+  return getDb().prepare(`
+    SELECT COALESCE(SUM(uplink), 0) as total_up, COALESCE(SUM(downlink), 0) as total_down
+    FROM traffic_daily WHERE user_id = ?
+  `).get(userId);
+}
+
+// 获取所有用户流量排行（支持按日期筛选和分页）
+function getAllUsersTraffic(date, limit = 20, offset = 0) {
+  const where = date ? 'AND t.date = ?' : '';
+  const params = date ? [date, limit, offset] : [limit, offset];
+  const rows = getDb().prepare(`
+    SELECT u.id, u.username, u.name, u.avatar_url,
+      COALESCE(SUM(t.uplink), 0) as total_up,
+      COALESCE(SUM(t.downlink), 0) as total_down
+    FROM users u
+    LEFT JOIN traffic_daily t ON u.id = t.user_id ${where}
+    GROUP BY u.id
+    HAVING total_up + total_down > 0
+    ORDER BY (total_up + total_down) DESC
+    LIMIT ? OFFSET ?
+  `).all(...params);
+  const countParams = date ? [date] : [];
+  const total = getDb().prepare(`
+    SELECT COUNT(*) as c FROM (
+      SELECT u.id FROM users u
+      LEFT JOIN traffic_daily t ON u.id = t.user_id ${where}
+      GROUP BY u.id HAVING COALESCE(SUM(t.uplink),0) + COALESCE(SUM(t.downlink),0) > 0
+    )
+  `).get(...countParams).c;
+  return { rows, total };
+}
+
+// 获取节点流量
+function getNodeTraffic(nodeId) {
+  return getDb().prepare(`
+    SELECT COALESCE(SUM(uplink), 0) as total_up, COALESCE(SUM(downlink), 0) as total_down
+    FROM traffic_daily WHERE node_id = ?
+  `).get(nodeId);
+}
+
+// 获取全局流量
+function getGlobalTraffic() {
+  return getDb().prepare(`
+    SELECT COALESCE(SUM(uplink), 0) as total_up, COALESCE(SUM(downlink), 0) as total_down
+    FROM traffic_daily
+  `).get();
+}
+
+// ========== 运维诊断 ==========
+
+function addDiagnosis(nodeId, diagInfo) {
+  return getDb().prepare('INSERT INTO ops_diagnosis (node_id, diag_info) VALUES (?, ?)').run(nodeId, diagInfo);
+}
+
+function updateDiagnosis(id, fields) {
+  const allowed = ['status','ai_analysis','fix_commands','fix_result','resolved_at'];
+  const safe = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)));
+  if (Object.keys(safe).length === 0) return;
+  const sets = Object.keys(safe).map(k => `${k} = ?`).join(', ');
+  getDb().prepare(`UPDATE ops_diagnosis SET ${sets} WHERE id = ?`).run(...Object.values(safe), id);
+}
+
+function getDiagnosis(id) {
+  return getDb().prepare('SELECT d.*, n.name as node_name, n.host FROM ops_diagnosis d JOIN nodes n ON d.node_id = n.id WHERE d.id = ?').get(id);
+}
+
+function clearDiagnoses() {
+  getDb().prepare('DELETE FROM ops_diagnosis').run();
+}
+
+function getAllDiagnoses(limit = 20) {
+  return getDb().prepare('SELECT d.*, n.name as node_name, n.host FROM ops_diagnosis d JOIN nodes n ON d.node_id = n.id ORDER BY d.created_at DESC LIMIT ?').all(limit);
+}
+
+// ========== AI 服务商操作 ==========
+
+function decryptProvider(p) {
+  if (!p) return p;
+  p.api_key = decrypt(p.api_key);
+  return p;
+}
+
+function getAllAiProviders() {
+  return getDb().prepare('SELECT * FROM ai_providers ORDER BY priority DESC, id ASC').all().map(decryptProvider);
+}
+
+function getEnabledAiProviders() {
+  return getDb().prepare('SELECT * FROM ai_providers WHERE enabled = 1 ORDER BY priority DESC, id ASC').all().map(decryptProvider);
+}
+
+function getAiProviderById(id) {
+  return decryptProvider(getDb().prepare('SELECT * FROM ai_providers WHERE id = ?').get(id));
+}
+
+function addAiProvider(provider) {
+  return getDb().prepare(`
+    INSERT INTO ai_providers (type, name, endpoint, api_key, model_id, model_name, enabled, priority, system_prompt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    provider.type, provider.name, provider.endpoint, encrypt(provider.api_key),
+    provider.model_id, provider.model_name || '', provider.enabled ? 1 : 0, provider.priority || 0,
+    provider.system_prompt || ''
+  );
+}
+
+function updateAiProvider(id, fields) {
+  if (fields.api_key) fields.api_key = encrypt(fields.api_key);
+  fields.updated_at = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const allowed = ['type','name','endpoint','api_key','model_id','model_name','enabled','priority','system_prompt','updated_at'];
+  const safe = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)));
+  if (Object.keys(safe).length === 0) return;
+  const sets = Object.keys(safe).map(k => `${k} = ?`).join(', ');
+  const values = Object.values(safe);
+  getDb().prepare(`UPDATE ai_providers SET ${sets} WHERE id = ?`).run(...values, id);
+}
+
+function deleteAiProvider(id) {
+  getDb().prepare('DELETE FROM ai_providers WHERE id = ?').run(id);
+}
+
+// ========== AI 对话历史 ==========
+
+function addAiChat(userId, role, content, providerId, sessionId) {
+  getDb().prepare('INSERT INTO ai_chats (user_id, session_id, role, content, provider_id) VALUES (?, ?, ?, ?, ?)').run(userId, sessionId || 'default', role, content, providerId || null);
+  // 更新会话时间
+  if (sessionId) {
+    getDb().prepare("UPDATE ai_sessions SET updated_at = datetime('now') WHERE id = ?").run(sessionId);
+  }
+}
+
+function getAiChatHistory(userId, limit = 20, sessionId) {
+  if (sessionId) {
+    return getDb().prepare('SELECT * FROM ai_chats WHERE user_id = ? AND session_id = ? ORDER BY created_at DESC LIMIT ?').all(userId, sessionId, limit).reverse();
+  }
+  return getDb().prepare('SELECT * FROM ai_chats WHERE user_id = ? ORDER BY created_at DESC LIMIT ?').all(userId, limit).reverse();
+}
+
+function clearAiChatHistory(userId, sessionId) {
+  if (sessionId) {
+    getDb().prepare('DELETE FROM ai_chats WHERE user_id = ? AND session_id = ?').run(userId, sessionId);
+    return;
+  }
+  getDb().prepare('DELETE FROM ai_chats WHERE user_id = ?').run(userId);
+}
+
+// ========== AI 会话管理 ==========
+
+function createAiSession(userId, sessionId, title) {
+  getDb().prepare('INSERT INTO ai_sessions (id, user_id, title) VALUES (?, ?, ?)').run(sessionId, userId, title || '新对话');
+  return { id: sessionId, user_id: userId, title: title || '新对话' };
+}
+
+function getAiSessions(userId) {
+  return getDb().prepare('SELECT * FROM ai_sessions WHERE user_id = ? ORDER BY updated_at DESC').all(userId);
+}
+
+function getAiSessionById(sessionId) {
+  return getDb().prepare('SELECT * FROM ai_sessions WHERE id = ?').get(sessionId);
+}
+
+function updateAiSessionTitle(sessionId, title) {
+  getDb().prepare("UPDATE ai_sessions SET title = ?, updated_at = datetime('now') WHERE id = ?").run(title, sessionId);
+}
+
+function deleteAiSession(sessionId, userId) {
+  getDb().prepare('DELETE FROM ai_chats WHERE session_id = ? AND user_id = ?').run(sessionId, userId);
+  getDb().prepare('DELETE FROM ai_sessions WHERE id = ? AND user_id = ?').run(sessionId, userId);
+}
+
+// ========== 订阅访问记录 ==========
+
+function logSubAccess(userId, ip, ua) {
+  getDb().prepare('INSERT INTO sub_access_log (user_id, ip, ua) VALUES (?, ?, ?)').run(userId, ip, ua || '');
+  // 清理30天前的记录
+  getDb().prepare("DELETE FROM sub_access_log WHERE created_at < datetime('now', '-30 days')").run();
+}
+
+function getSubAccessIPs(userId, hours = 24) {
+  return getDb().prepare(`
+    SELECT ip, COUNT(*) as count, MAX(created_at) as last_access
+    FROM sub_access_log
+    WHERE user_id = ? AND created_at > datetime('now', '-' || ? || ' hours')
+    GROUP BY ip ORDER BY count DESC
+  `).all(userId, hours);
+}
+
+function getSubAbuseUsers(hours = 24, minIPs = 3) {
+  return getDb().prepare(`
+    SELECT user_id, COUNT(DISTINCT ip) as ip_count, GROUP_CONCAT(DISTINCT ip) as ips
+    FROM sub_access_log
+    WHERE created_at > datetime('now', '-' || ? || ' hours')
+    GROUP BY user_id HAVING ip_count >= ?
+    ORDER BY ip_count DESC
+  `).all(hours, minIPs);
+}
+
+module.exports = {
+  getDb, findOrCreateUser, getUserBySubToken, getUserById, getAllUsers,
+  blockUser, resetSubToken,
+  isInWhitelist, getWhitelist, addToWhitelist, removeFromWhitelist,
+  getAllNodes, getNodeById, addNode, updateNode, deleteNode, updateNodeAfterRotation,
+  getUserNodeUuid, getUserAllNodeUuids, getNodeAllUserUuids,
+  ensureAllUsersHaveUuid, ensureUserHasAllNodeUuids, rotateAllUserNodeUuids,
+  recordTraffic, getUserTraffic, getAllUsersTraffic, getNodeTraffic, getGlobalTraffic,
+  addAuditLog, getAuditLogs, clearAuditLogs,
+  getSetting, setSetting,
+  getAllAiProviders, getEnabledAiProviders, getAiProviderById, addAiProvider, updateAiProvider, deleteAiProvider,
+  addAiChat, getAiChatHistory, clearAiChatHistory,
+  createAiSession, getAiSessions, getAiSessionById, updateAiSessionTitle, deleteAiSession,
+  logSubAccess, getSubAccessIPs, getSubAbuseUsers,
+  addDiagnosis, updateDiagnosis, getDiagnosis, getAllDiagnoses, clearDiagnoses
+};

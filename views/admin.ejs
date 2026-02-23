@@ -1,0 +1,297 @@
+<%- include('partials/head', { title: '管理后台' }) %>
+
+  <!-- 导航 -->
+  <nav class="glass-solid sticky top-0 z-40 px-6 py-3">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center text-sm">🍑</div>
+        <span class="text-white font-semibold hidden sm:block">小姨子の后台</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/" class="text-xs px-3 py-1.5 rounded-full glass text-gray-300 hover:text-white transition">返回面板</a>
+        <a href="/auth/logout" class="text-xs px-3 py-1.5 rounded-full glass text-gray-300 hover:text-red-400 transition">退出</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Tab 导航 -->
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+    <div class="flex gap-1 glass-solid rounded-2xl p-1.5 overflow-x-auto">
+      <button onclick="switchTab('nodes')" class="tab-btn active text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="nodes">🌐 节点</button>
+      <button onclick="switchTab('users')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="users">👥 用户</button>
+      <button onclick="switchTab('traffic')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="traffic">📊 流量</button>
+      <button onclick="switchTab('whitelist')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="whitelist">🔒 白名单</button>
+      <button onclick="switchTab('ai')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="ai">🧠 AI</button>
+      <button onclick="switchTab('logs')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="logs">📋 日志</button>
+      <button onclick="switchTab('abuse')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="abuse">🔍 监控</button>
+      <button onclick="switchTab('ops')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="ops">🔧 运维</button>
+      <button onclick="switchTab('notify')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="notify">🔔 通知</button>
+    </div>
+  </div>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+    <%- include('partials/admin-nodes') %>
+    <%- include('partials/admin-sections') %>
+    <%- include('partials/admin-traffic') %>
+  </main>
+
+  <style>
+    .tab-btn{color:#9ca3af}.tab-btn:hover{color:#fff;background:rgba(255,255,255,0.05)}
+    .tab-btn.active{color:#fff;background:rgba(244,63,94,0.2);font-weight:500}
+    .tab-panel{display:none}.tab-panel.active{display:block}
+  </style>
+  <script>
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === name));
+      location.hash = name;
+      if (name === 'ops') loadOps();
+    }
+    if (location.hash.slice(1)) switchTab(location.hash.slice(1));
+    const _msg = new URLSearchParams(location.search).get('msg');
+    if (_msg) { const m = {deploying:'🚀 部署中，请稍后刷新查看',added:'✅ 节点已添加',dup:'⚠️ IP 已存在'}; if (m[_msg]) showToast(m[_msg]); history.replaceState(null,'',location.pathname+location.hash); }
+
+    function toggleEdit(id) {
+      document.getElementById('host-display-' + id).classList.toggle('hidden');
+      document.getElementById('host-form-' + id).classList.toggle('hidden');
+    }
+
+    function updateNodeLevel(id, level) {
+      fetch('/admin/api/nodes/' + id + '/update-level', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ level })
+      }).then(r => r.json()).then(d => { if (d.ok) showToast('等级已更新，节点配置同步中'); });
+    }
+
+    const defaultEndpoints = { openai: 'https://api.openai.com/v1', gemini: 'https://generativelanguage.googleapis.com/v1beta', claude: 'https://api.anthropic.com/v1' };
+    const defaultModels = { openai: 'gpt-4o', gemini: 'gemini-2.0-flash', claude: 'claude-sonnet-4-20250514' };
+
+    function fillDefaults() {
+      const type = document.getElementById('pf-type').value;
+      document.getElementById('pf-endpoint').placeholder = defaultEndpoints[type] || '';
+      document.getElementById('pf-model-id').placeholder = defaultModels[type] || '';
+      if (!document.getElementById('pf-edit-id').value) {
+        document.getElementById('pf-endpoint').value = defaultEndpoints[type] || '';
+        document.getElementById('pf-model-id').value = defaultModels[type] || '';
+      }
+    }
+
+    async function saveProvider() {
+      const editId = document.getElementById('pf-edit-id').value;
+      const data = { type: document.getElementById('pf-type').value, name: document.getElementById('pf-name').value.trim(), endpoint: document.getElementById('pf-endpoint').value.trim(), api_key: document.getElementById('pf-key').value.trim(), model_id: document.getElementById('pf-model-id').value.trim(), system_prompt: document.getElementById('pf-prompt').value.trim(), enabled: true };
+      if (!data.name || !data.endpoint || !data.model_id || (!editId && !data.api_key)) { _alert('请填写必填字段'); return; }
+      const btn = document.getElementById('pf-save-btn'); btn.disabled = true; btn.textContent = '保存中...';
+      try {
+        const url = editId ? '/admin/api/ai/providers/' + editId : '/admin/api/ai/providers';
+        if (editId && !data.api_key) delete data.api_key;
+        const res = await fetch(url, { method: editId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        if (res.ok) { location.hash='ai'; location.reload(); } else _alert('保存失败: ' + (await res.json()).error);
+      } catch (e) { _alert('请求失败: ' + e.message); }
+      btn.disabled = false; btn.textContent = '保存';
+    }
+
+    async function toggleProvider(id) { await fetch('/admin/api/ai/providers/' + id + '/toggle', { method: 'POST', headers:{'Content-Type':'application/json'} }); location.hash='ai'; location.reload(); }
+    async function deleteProvider(id) { if (!await _confirm('确定删除？')) return; await fetch('/admin/api/ai/providers/' + id, { method: 'DELETE', headers:{'Content-Type':'application/json'} }); location.hash='ai'; location.reload(); }
+
+    function editProvider(id) {
+      const el = document.querySelector('[data-provider-id="' + id + '"]');
+      if (!el) return;
+      const texts = el.querySelectorAll('p');
+      const nameTxt = texts[0]?.textContent?.trim() || '';
+      const metaTxt = texts[1]?.textContent || '';
+      const endpointTxt = texts[2]?.textContent?.trim() || '';
+      const typeMatch = metaTxt.match(/^\s*(OPENAI|GEMINI|CLAUDE)/);
+      const type = typeMatch ? typeMatch[1].toLowerCase() : 'openai';
+      const modelMatch = metaTxt.match(/·\s*(.+)$/);
+      const modelId = modelMatch ? modelMatch[1].trim() : '';
+      document.getElementById('pf-edit-id').value = id;
+      document.getElementById('pf-type').value = type;
+      document.getElementById('pf-name').value = nameTxt;
+      document.getElementById('pf-endpoint').value = endpointTxt;
+      document.getElementById('pf-key').value = '';
+      document.getElementById('pf-key').placeholder = '留空保留原 Key';
+      document.getElementById('pf-model-id').value = modelId;
+      document.getElementById('pf-prompt').value = el.dataset.prompt || '';
+      document.getElementById('pf-save-btn').textContent = '更新';
+      document.getElementById('add-provider-details').open = true;
+      document.getElementById('provider-form-container').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function saveAnnouncement() {
+      const text = document.getElementById('announcement-text').value.trim();
+      await fetch('/admin/api/announcement', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text}) });
+      showToast(text ? '✅ 公告已更新' : '✅ 公告已清除');
+    }
+    async function saveTG() {
+      const token = document.getElementById('tg-token').value.trim();
+      const chatId = document.getElementById('tg-chat-id').value.trim();
+      const res = await fetch('/admin/api/notify/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, chatId }) });
+      if (res.ok) toast('✅ 已保存'); else toast('❌ 保存失败');
+    }
+    async function testTG() {
+      const res = await fetch('/admin/api/notify/test', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await res.json();
+      toast(data.ok ? '✅ 测试消息已发送' : '❌ ' + (data.error || '发送失败'));
+    }
+    async function toggleEvent(el) {
+      await fetch('/admin/api/notify/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: el.dataset.key, enabled: el.checked }) });
+    }
+
+    function fmtBytes(b) { if(!b)return'0 B'; const u=['B','KB','MB','GB','TB']; const i=Math.floor(Math.log(b)/Math.log(1024)); return (b/Math.pow(1024,i)).toFixed(1)+' '+u[i]; }
+    async function loadTraffic(page) {
+      const date = document.getElementById('traffic-date').value;
+      const res = await fetch('/admin/api/traffic?date=' + date + '&page=' + page);
+      const d = await res.json();
+      const body = document.getElementById('traffic-body');
+      if (d.rows.length === 0) { body.innerHTML = '<tr><td colspan="4" class="py-6 px-4 text-gray-600 text-xs text-center">该日暂无流量数据</td></tr>'; }
+      else { body.innerHTML = d.rows.map(u => `<tr class="border-b border-white/5"><td class="py-2 px-4 text-xs">${u.username}</td><td class="py-2 px-4 text-xs">${fmtBytes(u.total_up)}</td><td class="py-2 px-4 text-xs">${fmtBytes(u.total_down)}</td><td class="py-2 px-4 text-xs font-medium text-white">${fmtBytes(u.total_up+u.total_down)}</td></tr>`).join(''); }
+      document.getElementById('traffic-info').textContent = `共 ${d.total} 人`;
+      const pager = document.getElementById('traffic-pager'); pager.innerHTML = '';
+      for (let i=1;i<=d.pages;i++) { const btn=document.createElement('button'); btn.textContent=i; btn.className='text-xs px-2 py-1 rounded '+(i===d.page?'bg-rose-600 text-white':'glass text-gray-400 hover:text-white'); btn.onclick=()=>loadTraffic(i); pager.appendChild(btn); }
+    }
+
+    async function loadLogs(page) {
+      const res = await fetch('/admin/api/logs?page=' + page);
+      const d = await res.json();
+      document.getElementById('log-body').innerHTML = d.rows.map(l =>
+        `<tr class="border-b border-white/5"><td class="py-2 px-4 text-xs text-gray-500">${l.created_at}</td><td class="py-2 px-4 text-xs">${l.username||'-'}</td><td class="py-2 px-4 text-xs">${l.action}</td><td class="py-2 px-4 text-xs text-gray-500 max-w-xs truncate">${l.detail||''}</td></tr>`
+      ).join('');
+      document.getElementById('log-info').textContent = `共 ${d.total} 条`;
+      const pager = document.getElementById('log-pager');
+      pager.innerHTML = '';
+      for (let i = 1; i <= d.pages; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        btn.className = 'text-xs px-2 py-1 rounded ' + (i===d.page ? 'bg-rose-600 text-white' : 'glass text-gray-400 hover:text-white');
+        btn.onclick = () => loadLogs(i);
+        pager.appendChild(btn);
+      }
+    }
+    async function clearLogs() {
+      if (!await _confirm('确定清空所有日志？')) return;
+      await fetch('/admin/api/logs/clear', { method:'POST', headers:{'Content-Type':'application/json'} });
+      loadLogs(1);
+    }
+
+    async function saveOpsAi() {
+      const data = { type: document.getElementById('ops-type').value, endpoint: document.getElementById('ops-endpoint').value.trim(), key: document.getElementById('ops-key').value.trim(), model: document.getElementById('ops-model').value.trim() };
+      await fetch('/admin/api/ops/ai-config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+      document.getElementById('ops-key').value = '';
+      showToast('✅ 运维 AI 已保存');
+      loadOpsConfig();
+    }
+    async function loadOpsConfig() {
+      const res = await fetch('/admin/api/ops/ai-config');
+      const cfg = await res.json();
+      document.getElementById('ops-type').value = cfg.type || 'openai';
+      document.getElementById('ops-endpoint').value = cfg.endpoint || '';
+      document.getElementById('ops-model').value = cfg.model || '';
+      document.getElementById('ops-key').placeholder = cfg.configured ? 'API Key（已配置，留空保留）' : 'API Key';
+      document.getElementById('ops-ai-status').textContent = cfg.configured ? '✅ 已配置' : '未配置';
+      document.getElementById('ops-ai-status').className = 'text-xs px-2 py-0.5 rounded-full ' + (cfg.configured ? 'bg-emerald-500/20 text-emerald-300' : 'bg-gray-500/20 text-gray-400');
+    }
+    async function clearOps() {
+      if (!await _confirm('确定清空所有诊断记录？')) return;
+      await fetch('/admin/api/ops/clear', { method:'POST', headers:{'Content-Type':'application/json'} });
+      loadOps();
+    }
+    async function manualDiagnose() {
+      const id = document.getElementById('ops-node-select').value;
+      if (!id) return;
+      const btn = event.target;
+      btn.disabled = true; btn.textContent = '⏳ 诊断中...'; btn.classList.add('opacity-50');
+      const res = await fetch('/admin/api/ops/'+id+'/diagnose', { method:'POST', headers:{'Content-Type':'application/json'} });
+      const d = await res.json();
+      if (d.ok) { showToast('🔍 诊断已触发，AI 分析中...'); setTimeout(() => loadOps(), 5000); }
+      else showToast('❌ ' + d.error);
+      setTimeout(() => { btn.disabled = false; btn.textContent = '🔍 手动诊断'; btn.classList.remove('opacity-50'); }, 3000);
+    }
+    async function loadOps() {
+      loadOpsConfig();
+      const listRes = await fetch('/admin/api/ops/list');
+      const list = await listRes.json();
+      const container = document.getElementById('ops-list');
+      if (list.length === 0) { container.innerHTML = '<p class="text-gray-600 text-sm text-center py-4">暂无诊断记录</p>'; return; }
+      container.innerHTML = list.map(d => {
+        const cmds = d.fix_commands ? JSON.parse(d.fix_commands) : [];
+        const statusMap = {pending:'⏳ 待分析',analyzed:'🔍 待确认',no_ai:'⚠️ AI不可用',fixed:'✅ 已修复',dismissed:'🚫 已忽略'};
+        return `<div class="mb-3 p-4 rounded-xl bg-black/20 border border-white/5">
+          <div class="flex items-center justify-between mb-2">
+            <div><span class="text-white text-sm font-medium">${d.node_name}</span> <span class="text-gray-500 text-xs">${d.host}</span></div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs ${d.status==='fixed'?'text-emerald-400':d.status==='analyzed'?'text-amber-400':'text-gray-500'}">${statusMap[d.status]||d.status}</span>
+              <span class="text-gray-600 text-xs">${d.created_at}</span>
+            </div>
+          </div>
+          ${d.ai_analysis ? `<div class="mb-2"><p class="text-gray-500 text-xs mb-1">AI 分析：</p><p class="text-gray-300 text-xs whitespace-pre-wrap">${d.ai_analysis}</p></div>` : ''}
+          ${cmds.length ? `<div class="mb-2"><p class="text-gray-500 text-xs mb-1">修复命令：</p><pre class="text-xs text-amber-300/80 bg-black/30 p-2 rounded-lg overflow-x-auto">${cmds.join('\\n')}</pre></div>` : ''}
+          ${d.fix_result ? `<div class="mb-2"><p class="text-gray-500 text-xs mb-1">执行结果：</p><pre class="text-xs text-gray-400 bg-black/30 p-2 rounded-lg overflow-x-auto max-h-32">${d.fix_result}</pre></div>` : ''}
+          ${d.diag_info ? `<details class="mb-2"><summary class="text-gray-600 text-xs cursor-pointer hover:text-gray-400">📄 查看诊断日志</summary><pre class="text-xs text-gray-500 bg-black/30 p-2 rounded-lg overflow-x-auto max-h-48 mt-1">${d.diag_info}</pre></details>` : ''}
+          ${d.status==='analyzed' ? `<div class="flex gap-2 mt-2"><button onclick="execFix(${d.id})" class="bg-rose-600 hover:bg-rose-500 text-white text-xs px-3 py-1.5 rounded-lg transition">执行修复</button><button onclick="dismissFix(${d.id})" class="glass text-gray-400 hover:text-white text-xs px-3 py-1.5 rounded-lg transition">忽略</button></div>` : ''}
+        </div>`;
+      }).join('');
+    }
+    async function execFix(id) {
+      if (!confirm('确认执行 AI 生成的修复命令？')) return;
+      const res = await fetch('/admin/api/ops/'+id+'/execute', { method:'POST', headers:{'Content-Type':'application/json'} });
+      const d = await res.json();
+      if (d.ok) { showToast('✅ 修复命令已执行'); loadOps(); } else showToast('❌ '+d.error);
+    }
+    async function dismissFix(id) {
+      await fetch('/admin/api/ops/'+id+'/dismiss', { method:'POST', headers:{'Content-Type':'application/json'} });
+      loadOps();
+    }
+
+    async function checkAbuse() {
+      const hours = document.getElementById('abuse-hours').value;
+      const min = hours === '24' ? 20 : 100;
+      const container = document.getElementById('abuse-result');
+      container.innerHTML = '<p class="text-gray-500 text-sm text-center py-2">检测中...</p>';
+      try {
+        const res = await fetch('/admin/api/sub-abuse?hours=' + hours + '&min=' + min);
+        const data = await res.json();
+        if (data.length === 0) {
+          container.innerHTML = '<p class="text-emerald-400 text-sm text-center py-4">✅ 未发现异常，所有用户订阅拉取正常</p>';
+          return;
+        }
+        container.innerHTML = '<div class="space-y-2">' + data.map(u =>
+          '<div class="flex items-center justify-between p-3 rounded-xl bg-black/20 cursor-pointer hover:bg-white/5 transition" onclick="showDetail(' + u.user_id + ',' + hours + ')">' +
+          '<div><span class="text-white text-sm">' + u.username + '</span><span class="text-gray-500 text-xs ml-2">ID:' + u.user_id + '</span></div>' +
+          '<span class="text-xs px-2 py-0.5 rounded-full ' + (u.ip_count >= 5 ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300') + '">' + u.ip_count + ' 个 IP</span>' +
+          '</div>'
+        ).join('') + '</div>';
+      } catch(e) { container.innerHTML = '<p class="text-red-400 text-sm">检测失败</p>'; }
+    }
+
+    async function showDetail(userId, hours) {
+      const panel = document.getElementById('abuse-detail-panel');
+      const container = document.getElementById('abuse-detail');
+      panel.classList.remove('hidden');
+      container.innerHTML = '<p class="text-gray-500 text-xs">加载中...</p>';
+      const res = await fetch('/admin/api/sub-access/' + userId + '?hours=' + hours);
+      const ips = await res.json();
+      container.innerHTML = '<div class="space-y-1">' + ips.map(ip =>
+        '<div class="flex items-center justify-between p-2 rounded-lg bg-black/20 text-xs">' +
+        '<span class="text-gray-300 font-mono">' + ip.ip + '</span>' +
+        '<div class="flex gap-3"><span class="text-gray-500">拉取 ' + ip.count + ' 次</span><span class="text-gray-600">' + ip.last_access + '</span></div>' +
+        '</div>'
+      ).join('') + '</div>';
+    }
+
+    async function askAI() {
+      const input = document.getElementById('ai-input'), btn = document.getElementById('ai-btn'), resp = document.getElementById('ai-response');
+      const provider = document.getElementById('admin-ai-model')?.value || '';
+      const message = input.value.trim();
+      if (!message || !provider) return;
+      btn.disabled = true; btn.textContent = '⏳'; resp.classList.remove('hidden'); resp.textContent = ''; input.value = '';
+      try {
+        const evtSource = new EventSource('/panel/ai/chat/stream?message=' + encodeURIComponent(message) + '&provider=' + provider);
+        evtSource.onmessage = (e) => {
+          if (e.data === '[DONE]') { evtSource.close(); btn.disabled = false; btn.textContent = '提问'; return; }
+          try { const data = JSON.parse(e.data); if (data.error) { resp.textContent += data.error; evtSource.close(); btn.disabled = false; btn.textContent = '提问'; return; } if (data.text) resp.textContent += data.text; resp.scrollTop = resp.scrollHeight; } catch {}
+        };
+        evtSource.onerror = () => { evtSource.close(); if (!resp.textContent) resp.textContent = '连接失败'; btn.disabled = false; btn.textContent = '提问'; };
+      } catch (e) { resp.textContent = '请求失败'; btn.disabled = false; btn.textContent = '提问'; }
+    }
+  </script>
+<%- include('partials/foot') %>
