@@ -65,6 +65,22 @@
         <input type="text" readonly value="<%= subUrl %>" id="sub-link"
                class="flex-1 bg-black/30 text-rose-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
         <button onclick="copySubLink()" class="bg-rose-600 hover:bg-rose-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
+        <button onclick="showSubQr()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
+      </div>
+    </div>
+
+    <!-- 订阅二维码弹窗 -->
+    <div id="sub-qr-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm" onclick="if(event.target===this)hideSubQr()">
+      <div class="glass-solid rounded-2xl p-5 w-[92%] max-w-sm border border-white/10">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-white font-semibold text-sm">📱 扫码添加订阅</h3>
+          <button onclick="hideSubQr()" class="text-gray-400 hover:text-white text-lg leading-none">✕</button>
+        </div>
+        <p class="text-gray-400 text-xs mb-3">用手机客户端扫码即可导入当前账号订阅链接</p>
+        <div class="bg-white rounded-xl p-3 mx-auto w-fit mb-3">
+          <img id="sub-qr-img" alt="订阅二维码" class="w-[220px] h-[220px] block" />
+        </div>
+        <p class="text-[11px] text-gray-500 break-all font-mono select-all" id="sub-qr-text"></p>
       </div>
     </div>
 
@@ -149,6 +165,20 @@
     }
     function copySubLink() {
       navigator.clipboard.writeText(document.getElementById('sub-link').value).then(() => toast('✅ 订阅链接已复制'));
+    }
+    function showSubQr() {
+      const link = document.getElementById('sub-link').value;
+      const modal = document.getElementById('sub-qr-modal');
+      const img = document.getElementById('sub-qr-img');
+      document.getElementById('sub-qr-text').textContent = link;
+      img.src = '/sub-qr?t=' + Date.now();
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+    function hideSubQr() {
+      const modal = document.getElementById('sub-qr-modal');
+      modal.classList.remove('flex');
+      modal.classList.add('hidden');
     }
     function toggleAI() {
       const panel = document.getElementById('ai-panel');

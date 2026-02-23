@@ -24,8 +24,8 @@
       <button onclick="switchTab('ai')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="ai">🧠 AI</button>
       <button onclick="switchTab('logs')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="logs">📋 日志</button>
       <button onclick="switchTab('abuse')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="abuse">🔍 监控</button>
-      <button onclick="switchTab('ops')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="ops">🔧 运维</button>
       <button onclick="switchTab('notify')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="notify">🔔 通知</button>
+      <button onclick="switchTab('aws')" class="tab-btn text-sm px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="aws">☁️ AWS</button>
     </div>
   </div>
 
@@ -41,11 +41,12 @@
     .tab-panel{display:none}.tab-panel.active{display:block}
   </style>
   <script>
+    function showToast(msg, ms) { toast(msg, ms); }
     function switchTab(name) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === name));
       location.hash = name;
-      if (name === 'ops') loadOps();
+      if (name === 'aws') loadAwsConfig();
     }
     if (location.hash.slice(1)) switchTab(location.hash.slice(1));
     const _msg = new URLSearchParams(location.search).get('msg');
@@ -122,6 +123,173 @@
       await fetch('/admin/api/announcement', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text}) });
       showToast(text ? '✅ 公告已更新' : '✅ 公告已清除');
     }
+    async function saveMaxUsers() {
+      const max = parseInt(document.getElementById('max-users-input').value) || 0;
+      const res = await fetch('/admin/api/max-users', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({max}) });
+      if (res.ok) showToast(max > 0 ? '✅ 注册上限已设为 ' + max + ' 人' : '✅ 已取消注册限制');
+      else showToast('❌ 保存失败');
+    }
+
+    // ========== AWS ==========
+    window._awsAccounts = [];
+    async function loadAwsConfig() {
+      const res = await fetch('/admin/api/aws/config');
+      const cfg = await res.json();
+      window._awsAccounts = cfg.accounts || [];
+      const el = document.getElementById('aws-status');
+      const list = document.getElementById('aws-accounts');
+      const bindSel = document.getElementById('bind-account-id');
+
+      if (cfg.configured) {
+        el.textContent = `✅ 已配置 ${cfg.count} 个账号`;
+        el.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300';
+      } else {
+        el.textContent = '未配置';
+        el.className = 'text-xs px-2 py-0.5 rounded-full bg-gray-500/20 text-gray-400';
+      }
+
+      list.innerHTML = (cfg.accounts || []).map(a =>
+        `<div class="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2.5">
+          <div class="min-w-0">
+            <div class="text-xs text-emerald-300 font-medium truncate">#${a.id} ${a.name}</div>
+            <div class="text-[11px] text-gray-300 mt-0.5 truncate">${a.accessKeyMasked}${a.socks5_host ? ' · SOCKS ' + a.socks5_host + ':' + a.socks5_port : ''}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" class="text-amber-200 hover:text-amber-100 text-xs px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20" onclick="editAwsAccount(${a.id})">编辑</button>
+            <button type="button" class="text-red-300 hover:text-red-200 text-xs px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/20" onclick="deleteAwsAccount(${a.id})">删除</button>
+          </div>
+        </div>`
+      ).join('') || '<p class="text-gray-500 text-xs">暂无 AWS 账号</p>';
+
+      bindSel.innerHTML = (cfg.accounts || []).map(a => `<option value="${a.id}">#${a.id} ${a.name}</option>`).join('');
+    }
+
+    async function saveAwsConfig() {
+      const name = document.getElementById('aws-name').value.trim();
+      const ak = document.getElementById('aws-ak').value.trim();
+      const sk = document.getElementById('aws-sk').value.trim();
+      const socks5Url = document.getElementById('aws-socks-url').value.trim();
+
+      if (!name || !ak || !sk) { showToast('请填写账号名、AK、SK'); return; }
+
+      const res = await fetch('/admin/api/aws/config', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ name, accessKey:ak, secretKey:sk, socks5Url })
+      });
+
+      if (res.ok) {
+        showToast('✅ AWS 账号已新增');
+        ['aws-name','aws-ak','aws-sk','aws-socks-url'].forEach(id => document.getElementById(id).value='');
+        document.getElementById('aws-socks-test-result').textContent = '';
+        loadAwsConfig();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        showToast('❌ ' + (d.error || '保存失败'));
+      }
+    }
+
+    async function testSocksProxyInput(inputId, resultId) {
+      const socks5Url = document.getElementById(inputId).value.trim();
+      const resultEl = document.getElementById(resultId);
+      if (!socks5Url) { showToast('请先填写 SOCKS5 URL'); return; }
+      resultEl.textContent = '验证中...';
+      const res = await fetch('/admin/api/aws/socks-test', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ socks5Url })
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.ok) {
+        resultEl.textContent = `✅ 代理可用，出口 IP: ${d.ip}`;
+        resultEl.className = 'text-[11px] text-emerald-400 mt-1';
+      } else {
+        resultEl.textContent = `❌ 验证失败: ${d.error || '未知错误'}`;
+        resultEl.className = 'text-[11px] text-red-400 mt-1';
+      }
+    }
+    async function testSocksProxy() {
+      return testSocksProxyInput('aws-socks-url', 'aws-socks-test-result');
+    }
+
+    async function deleteAwsAccount(id) {
+      if (!await _confirm('确定删除该 AWS 账号？')) return;
+      const res = await fetch('/admin/api/aws/config/' + id, { method:'DELETE', headers:{'Content-Type':'application/json'} });
+      if (res.ok) { showToast('✅ 已删除账号'); loadAwsConfig(); }
+      else showToast('❌ 删除失败');
+    }
+
+    function editAwsAccount(id) {
+      const a = (window._awsAccounts || []).find(x => x.id === id);
+      if (!a) { showToast('账号不存在'); return; }
+
+      document.getElementById('edit-aws-id').value = id;
+      document.getElementById('edit-aws-name').value = a.name || '';
+      document.getElementById('edit-aws-ak').value = a.accessKeyMasked || '';
+      document.getElementById('edit-aws-socks').value = a.socks5_host ? `socks5://${a.socks5_host}:${a.socks5_port || 1080}` : '';
+      document.getElementById('edit-aws-socks-test').textContent = '';
+      document.getElementById('aws-edit-modal').classList.remove('hidden');
+    }
+
+    function closeAwsEditModal() {
+      document.getElementById('aws-edit-modal').classList.add('hidden');
+    }
+
+    async function saveAwsEdit() {
+      const id = parseInt(document.getElementById('edit-aws-id').value);
+      const name = document.getElementById('edit-aws-name').value.trim();
+      const socks5Url = document.getElementById('edit-aws-socks').value.trim();
+      if (!id) { showToast('参数错误'); return; }
+      if (!name) { showToast('账号名不能为空'); return; }
+
+      const res = await fetch('/admin/api/aws/config/' + id, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ name, socks5Url })
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToast('✅ 账号已更新');
+        closeAwsEditModal();
+        loadAwsConfig();
+      } else {
+        showToast('❌ ' + (d.error || '更新失败'));
+      }
+    }
+
+    function showBindAws(nodeId) {
+      document.getElementById('bind-node-id').value = nodeId;
+      if (!window._awsAccounts || window._awsAccounts.length === 0) { showToast('请先新增 AWS 账号'); return; }
+      document.getElementById('aws-bind-modal').classList.remove('hidden');
+    }
+
+    async function confirmBindAws() {
+      const nodeId = document.getElementById('bind-node-id').value;
+      const data = {
+        aws_account_id: parseInt(document.getElementById('bind-account-id').value),
+        aws_instance_id: document.getElementById('bind-instance-id').value.trim(),
+        aws_type: document.getElementById('bind-type').value,
+        aws_region: document.getElementById('bind-region').value.trim() || null
+      };
+      if (!data.aws_account_id) { showToast('请选择 AWS 账号'); return; }
+      if (!data.aws_instance_id) { showToast('请填写实例 ID'); return; }
+      const res = await fetch('/admin/api/nodes/' + nodeId + '/aws-bind', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+      if (res.ok) { showToast('✅ 已绑定'); document.getElementById('aws-bind-modal').classList.add('hidden'); location.hash='aws'; location.reload(); }
+      else showToast('❌ 绑定失败');
+    }
+    async function unbindAws(nodeId) {
+      if (!await _confirm('确定解绑？')) return;
+      const res = await fetch('/admin/api/nodes/' + nodeId + '/aws-bind', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({aws_instance_id:null, aws_type:null, aws_region:null, aws_account_id:null}) });
+      if (res.ok) { showToast('✅ 已解绑'); location.hash='aws'; location.reload(); }
+    }
+    async function swapNodeIp(nodeId, nodeName) {
+      if (!await _confirm('确定给 ' + nodeName + ' 换 IP？将释放旧 IP 并分配新 IP')) return;
+      showToast('🔄 换 IP 中，请稍候...');
+      const res = await fetch('/admin/api/nodes/' + nodeId + '/swap-ip', { method:'POST', headers:{'Content-Type':'application/json'} });
+      const data = await res.json();
+      if (data.success) { showToast('✅ 换 IP 成功: ' + data.newIp); setTimeout(() => { location.hash='aws'; location.reload(); }, 1500); }
+      else showToast('❌ ' + (data.error || '换 IP 失败'));
+    }
+    // 初始化 AWS 配置状态
+    if (location.hash === '#aws') setTimeout(loadAwsConfig, 100);
     async function saveTG() {
       const token = document.getElementById('tg-token').value.trim();
       const chatId = document.getElementById('tg-chat-id').value.trim();
@@ -171,75 +339,6 @@
       if (!await _confirm('确定清空所有日志？')) return;
       await fetch('/admin/api/logs/clear', { method:'POST', headers:{'Content-Type':'application/json'} });
       loadLogs(1);
-    }
-
-    async function saveOpsAi() {
-      const data = { type: document.getElementById('ops-type').value, endpoint: document.getElementById('ops-endpoint').value.trim(), key: document.getElementById('ops-key').value.trim(), model: document.getElementById('ops-model').value.trim() };
-      await fetch('/admin/api/ops/ai-config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
-      document.getElementById('ops-key').value = '';
-      showToast('✅ 运维 AI 已保存');
-      loadOpsConfig();
-    }
-    async function loadOpsConfig() {
-      const res = await fetch('/admin/api/ops/ai-config');
-      const cfg = await res.json();
-      document.getElementById('ops-type').value = cfg.type || 'openai';
-      document.getElementById('ops-endpoint').value = cfg.endpoint || '';
-      document.getElementById('ops-model').value = cfg.model || '';
-      document.getElementById('ops-key').placeholder = cfg.configured ? 'API Key（已配置，留空保留）' : 'API Key';
-      document.getElementById('ops-ai-status').textContent = cfg.configured ? '✅ 已配置' : '未配置';
-      document.getElementById('ops-ai-status').className = 'text-xs px-2 py-0.5 rounded-full ' + (cfg.configured ? 'bg-emerald-500/20 text-emerald-300' : 'bg-gray-500/20 text-gray-400');
-    }
-    async function clearOps() {
-      if (!await _confirm('确定清空所有诊断记录？')) return;
-      await fetch('/admin/api/ops/clear', { method:'POST', headers:{'Content-Type':'application/json'} });
-      loadOps();
-    }
-    async function manualDiagnose() {
-      const id = document.getElementById('ops-node-select').value;
-      if (!id) return;
-      const btn = event.target;
-      btn.disabled = true; btn.textContent = '⏳ 诊断中...'; btn.classList.add('opacity-50');
-      const res = await fetch('/admin/api/ops/'+id+'/diagnose', { method:'POST', headers:{'Content-Type':'application/json'} });
-      const d = await res.json();
-      if (d.ok) { showToast('🔍 诊断已触发，AI 分析中...'); setTimeout(() => loadOps(), 5000); }
-      else showToast('❌ ' + d.error);
-      setTimeout(() => { btn.disabled = false; btn.textContent = '🔍 手动诊断'; btn.classList.remove('opacity-50'); }, 3000);
-    }
-    async function loadOps() {
-      loadOpsConfig();
-      const listRes = await fetch('/admin/api/ops/list');
-      const list = await listRes.json();
-      const container = document.getElementById('ops-list');
-      if (list.length === 0) { container.innerHTML = '<p class="text-gray-600 text-sm text-center py-4">暂无诊断记录</p>'; return; }
-      container.innerHTML = list.map(d => {
-        const cmds = d.fix_commands ? JSON.parse(d.fix_commands) : [];
-        const statusMap = {pending:'⏳ 待分析',analyzed:'🔍 待确认',no_ai:'⚠️ AI不可用',fixed:'✅ 已修复',dismissed:'🚫 已忽略'};
-        return `<div class="mb-3 p-4 rounded-xl bg-black/20 border border-white/5">
-          <div class="flex items-center justify-between mb-2">
-            <div><span class="text-white text-sm font-medium">${d.node_name}</span> <span class="text-gray-500 text-xs">${d.host}</span></div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs ${d.status==='fixed'?'text-emerald-400':d.status==='analyzed'?'text-amber-400':'text-gray-500'}">${statusMap[d.status]||d.status}</span>
-              <span class="text-gray-600 text-xs">${d.created_at}</span>
-            </div>
-          </div>
-          ${d.ai_analysis ? `<div class="mb-2"><p class="text-gray-500 text-xs mb-1">AI 分析：</p><p class="text-gray-300 text-xs whitespace-pre-wrap">${d.ai_analysis}</p></div>` : ''}
-          ${cmds.length ? `<div class="mb-2"><p class="text-gray-500 text-xs mb-1">修复命令：</p><pre class="text-xs text-amber-300/80 bg-black/30 p-2 rounded-lg overflow-x-auto">${cmds.join('\\n')}</pre></div>` : ''}
-          ${d.fix_result ? `<div class="mb-2"><p class="text-gray-500 text-xs mb-1">执行结果：</p><pre class="text-xs text-gray-400 bg-black/30 p-2 rounded-lg overflow-x-auto max-h-32">${d.fix_result}</pre></div>` : ''}
-          ${d.diag_info ? `<details class="mb-2"><summary class="text-gray-600 text-xs cursor-pointer hover:text-gray-400">📄 查看诊断日志</summary><pre class="text-xs text-gray-500 bg-black/30 p-2 rounded-lg overflow-x-auto max-h-48 mt-1">${d.diag_info}</pre></details>` : ''}
-          ${d.status==='analyzed' ? `<div class="flex gap-2 mt-2"><button onclick="execFix(${d.id})" class="bg-rose-600 hover:bg-rose-500 text-white text-xs px-3 py-1.5 rounded-lg transition">执行修复</button><button onclick="dismissFix(${d.id})" class="glass text-gray-400 hover:text-white text-xs px-3 py-1.5 rounded-lg transition">忽略</button></div>` : ''}
-        </div>`;
-      }).join('');
-    }
-    async function execFix(id) {
-      if (!confirm('确认执行 AI 生成的修复命令？')) return;
-      const res = await fetch('/admin/api/ops/'+id+'/execute', { method:'POST', headers:{'Content-Type':'application/json'} });
-      const d = await res.json();
-      if (d.ok) { showToast('✅ 修复命令已执行'); loadOps(); } else showToast('❌ '+d.error);
-    }
-    async function dismissFix(id) {
-      await fetch('/admin/api/ops/'+id+'/dismiss', { method:'POST', headers:{'Content-Type':'application/json'} });
-      loadOps();
     }
 
     async function checkAbuse() {

@@ -15,6 +15,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-ec2": "^3.995.0",
+    "@aws-sdk/client-lightsail": "^3.995.0",
+    "@smithy/node-http-handler": "^4.4.5",
     "better-sqlite3": "^12.6.2",
     "better-sqlite3-session-store": "^0.1.0",
     "dotenv": "^17.3.1",
@@ -28,6 +31,8 @@
     "node-ssh": "^13.2.1",
     "passport": "^0.7.0",
     "passport-oauth2": "^1.8.0",
+    "qrcode": "^1.5.4",
+    "socks-proxy-agent": "^8.0.5",
     "uuid": "^13.0.0"
   }
 }

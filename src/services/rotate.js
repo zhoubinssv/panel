@@ -1,13 +1,14 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('./database');
 const { randomPort } = require('../utils/vless');
-const { syncAllNodesConfig } = require('./deploy');
+const { syncNodeConfig } = require('./deploy');
 const { notify } = require('./notify');
 
-// 核心轮换：端口 + UUID + 同步配置（手动/自动共用）
+// 核心轮换：端口 + UUID + 同步配置（排除手动节点）
 async function rotateCore() {
-  const nodes = db.getAllNodes(true);
-  console.log(`[轮换开始] 共 ${nodes.length} 个活跃节点`);
+  const allActiveNodes = db.getAllNodes(true);
+  const nodes = allActiveNodes.filter(n => !n.is_manual);
+  console.log(`[轮换开始] 活跃节点 ${allActiveNodes.length} 个，其中参与轮换 ${nodes.length} 个（已排除手动节点）`);
 
   for (const node of nodes) {
     const portMin = parseInt(db.getSetting('rotate_port_min')) || 10000;
@@ -15,10 +16,15 @@ async function rotateCore() {
     db.updateNodeAfterRotation(node.id, node.uuid, randomPort(portMin, portMax));
   }
 
-  const uuidCount = db.rotateAllUserNodeUuids();
-  console.log(`[轮换] 已重置 ${uuidCount} 个用户-节点 UUID`);
+  const uuidCount = db.rotateUserNodeUuidsByNodeIds(nodes.map(n => n.id));
+  console.log(`[轮换] 已重置 ${uuidCount} 个用户-节点 UUID（自动节点）`);
 
-  const { success, failed } = await syncAllNodesConfig(db);
+  let success = 0, failed = 0;
+  for (const node of nodes) {
+    const updatedNode = db.getNodeById(node.id);
+    const ok = await syncNodeConfig(updatedNode, db).catch(() => false);
+    if (ok) success++; else failed++;
+  }
   return { success, failed, uuidCount };
 }
 

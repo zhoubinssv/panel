@@ -196,6 +196,7 @@ function initTables() {
   upsert.run('rotate_cron', '0 3 * * *');
   upsert.run('rotate_port_min', '10000');
   upsert.run('rotate_port_max', '60000');
+  upsert.run('max_users', '0'); // 0 = 不限制
 
   // 迁移：给 nodes 表补充 socks5 字段（已有表可能缺少）
   const cols = db.prepare("PRAGMA table_info(nodes)").all().map(c => c.name);
@@ -218,6 +219,40 @@ function initTables() {
       ALTER TABLE nodes ADD COLUMN sni TEXT DEFAULT 'www.microsoft.com';
     `);
   }
+  if (!cols.includes('aws_instance_id')) {
+    db.exec(`
+      ALTER TABLE nodes ADD COLUMN aws_instance_id TEXT;
+      ALTER TABLE nodes ADD COLUMN aws_type TEXT DEFAULT 'ec2';
+      ALTER TABLE nodes ADD COLUMN aws_region TEXT;
+    `);
+  }
+  if (!cols.includes('aws_account_id')) {
+    db.exec("ALTER TABLE nodes ADD COLUMN aws_account_id INTEGER");
+  }
+  if (!cols.includes('is_manual')) {
+    db.exec("ALTER TABLE nodes ADD COLUMN is_manual INTEGER DEFAULT 0");
+  }
+  if (!cols.includes('fail_count')) {
+    db.exec("ALTER TABLE nodes ADD COLUMN fail_count INTEGER DEFAULT 0");
+  }
+
+  // AWS 多账号表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS aws_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      access_key TEXT NOT NULL,
+      secret_key TEXT NOT NULL,
+      default_region TEXT DEFAULT 'us-east-1',
+      socks5_host TEXT,
+      socks5_port INTEGER DEFAULT 1080,
+      socks5_user TEXT,
+      socks5_pass TEXT,
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
 
   // 迁移：白名单表改用 nodeloc_id
   const wlCols = db.prepare("PRAGMA table_info(whitelist)").all().map(c => c.name);
@@ -308,6 +343,10 @@ function getUserById(id) {
   return getDb().prepare('SELECT * FROM users WHERE id = ?').get(id);
 }
 
+function getUserCount() {
+  return getDb().prepare('SELECT COUNT(*) as count FROM users').get().count;
+}
+
 function getAllUsers() {
   return getDb().prepare(`
     SELECT u.*, COALESCE(SUM(t.uplink),0)+COALESCE(SUM(t.downlink),0) as total_traffic
@@ -371,8 +410,8 @@ function getNodeById(id) {
 
 function addNode(node) {
   const stmt = getDb().prepare(`
-    INSERT INTO nodes (name, host, port, uuid, protocol, network, security, ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_path, xray_config_path, socks5_host, socks5_port, socks5_user, socks5_pass, is_active, region, remark)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO nodes (name, host, port, uuid, protocol, network, security, ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_path, xray_config_path, socks5_host, socks5_port, socks5_user, socks5_pass, is_active, region, remark, is_manual, fail_count)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   return stmt.run(
     node.name, node.host, node.port, node.uuid,
@@ -383,12 +422,14 @@ function addNode(node) {
     node.socks5_host || null, node.socks5_port || 1080,
     node.socks5_user || null, encrypt(node.socks5_pass) || null,
     node.is_active !== undefined ? node.is_active : 1,
-    node.region, node.remark
+    node.region, node.remark,
+    node.is_manual ? 1 : 0,
+    node.fail_count || 0
   );
 }
 
 function updateNode(id, fields) {
-  const allowed = ['name','host','port','uuid','ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_path','region','remark','is_active','last_check','last_rotated','socks5_host','socks5_port','socks5_user','socks5_pass','min_level','reality_private_key','reality_public_key','reality_short_id','sni'];
+  const allowed = ['name','host','port','uuid','ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_path','region','remark','is_active','last_check','last_rotated','socks5_host','socks5_port','socks5_user','socks5_pass','min_level','reality_private_key','reality_public_key','reality_short_id','sni','aws_instance_id','aws_type','aws_region','aws_account_id','is_manual','fail_count'];
   const safe = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)));
   if (Object.keys(safe).length === 0) return;
   const sets = Object.keys(safe).map(k => `${k} = ?`).join(', ');
@@ -435,6 +476,62 @@ function getSetting(key) {
 
 function setSetting(key, value) {
   getDb().prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
+}
+
+// ========== AWS 账号 ==========
+
+function decryptAwsAccount(a) {
+  if (!a) return a;
+  a.access_key = decrypt(a.access_key);
+  a.secret_key = decrypt(a.secret_key);
+  a.socks5_pass = decrypt(a.socks5_pass);
+  return a;
+}
+
+function getAwsAccounts(enabledOnly = false) {
+  const rows = enabledOnly
+    ? getDb().prepare('SELECT * FROM aws_accounts WHERE enabled = 1 ORDER BY id DESC').all()
+    : getDb().prepare('SELECT * FROM aws_accounts ORDER BY id DESC').all();
+  return rows.map(decryptAwsAccount);
+}
+
+function getAwsAccountById(id) {
+  return decryptAwsAccount(getDb().prepare('SELECT * FROM aws_accounts WHERE id = ?').get(id));
+}
+
+function addAwsAccount(account) {
+  return getDb().prepare(`
+    INSERT INTO aws_accounts (name, access_key, secret_key, default_region, socks5_host, socks5_port, socks5_user, socks5_pass, enabled, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `).run(
+    account.name,
+    encrypt(account.access_key),
+    encrypt(account.secret_key),
+    account.default_region || 'ap-northeast-1',
+    account.socks5_host || null,
+    account.socks5_port || 1080,
+    account.socks5_user || null,
+    encrypt(account.socks5_pass) || null,
+    account.enabled === false ? 0 : 1
+  );
+}
+
+function updateAwsAccount(id, fields) {
+  const safe = { ...fields };
+  if (safe.access_key) safe.access_key = encrypt(safe.access_key);
+  if (safe.secret_key) safe.secret_key = encrypt(safe.secret_key);
+  if (safe.socks5_pass) safe.socks5_pass = encrypt(safe.socks5_pass);
+  const allowed = ['name','access_key','secret_key','default_region','socks5_host','socks5_port','socks5_user','socks5_pass','enabled'];
+  const obj = Object.fromEntries(Object.entries(safe).filter(([k]) => allowed.includes(k)));
+  obj.updated_at = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const keys = Object.keys(obj);
+  if (!keys.length) return;
+  const sets = keys.map(k => `${k} = ?`).join(', ');
+  getDb().prepare(`UPDATE aws_accounts SET ${sets} WHERE id = ?`).run(...keys.map(k => obj[k]), id);
+}
+
+function deleteAwsAccount(id) {
+  getDb().prepare('DELETE FROM aws_accounts WHERE id = ?').run(id);
 }
 
 // ========== 用户-节点 UUID 映射 ==========
@@ -494,6 +591,21 @@ function ensureUserHasAllNodeUuids(userId) {
 // 轮换所有用户在所有节点的 UUID
 function rotateAllUserNodeUuids() {
   const rows = getDb().prepare('SELECT id FROM user_node_uuid').all();
+  const stmt = getDb().prepare('UPDATE user_node_uuid SET uuid = ? WHERE id = ?');
+  const updateMany = getDb().transaction((rows) => {
+    for (const row of rows) {
+      stmt.run(uuidv4(), row.id);
+    }
+  });
+  updateMany(rows);
+  return rows.length;
+}
+
+// 仅轮换指定节点的用户 UUID（用于排除手动节点）
+function rotateUserNodeUuidsByNodeIds(nodeIds = []) {
+  if (!Array.isArray(nodeIds) || nodeIds.length === 0) return 0;
+  const placeholders = nodeIds.map(() => '?').join(',');
+  const rows = getDb().prepare(`SELECT id FROM user_node_uuid WHERE node_id IN (${placeholders})`).all(...nodeIds);
   const stmt = getDb().prepare('UPDATE user_node_uuid SET uuid = ? WHERE id = ?');
   const updateMany = getDb().transaction((rows) => {
     for (const row of rows) {
@@ -719,15 +831,16 @@ function getSubAbuseUsers(hours = 24, minIPs = 3) {
 }
 
 module.exports = {
-  getDb, findOrCreateUser, getUserBySubToken, getUserById, getAllUsers,
+  getDb, findOrCreateUser, getUserBySubToken, getUserById, getUserCount, getAllUsers,
   blockUser, resetSubToken,
   isInWhitelist, getWhitelist, addToWhitelist, removeFromWhitelist,
   getAllNodes, getNodeById, addNode, updateNode, deleteNode, updateNodeAfterRotation,
   getUserNodeUuid, getUserAllNodeUuids, getNodeAllUserUuids,
-  ensureAllUsersHaveUuid, ensureUserHasAllNodeUuids, rotateAllUserNodeUuids,
+  ensureAllUsersHaveUuid, ensureUserHasAllNodeUuids, rotateAllUserNodeUuids, rotateUserNodeUuidsByNodeIds,
   recordTraffic, getUserTraffic, getAllUsersTraffic, getNodeTraffic, getGlobalTraffic,
   addAuditLog, getAuditLogs, clearAuditLogs,
   getSetting, setSetting,
+  getAwsAccounts, getAwsAccountById, addAwsAccount, updateAwsAccount, deleteAwsAccount,
   getAllAiProviders, getEnabledAiProviders, getAiProviderById, addAiProvider, updateAiProvider, deleteAiProvider,
   addAiChat, getAiChatHistory, clearAiChatHistory,
   createAiSession, getAiSessions, getAiSessionById, updateAiSessionTitle, deleteAiSession,

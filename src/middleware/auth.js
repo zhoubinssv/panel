@@ -19,6 +19,15 @@ function setupAuth(app) {
       if (!res.ok) return done(new Error('获取用户信息失败'));
       const userInfo = await res.json();
 
+      // 检查注册人数上限（已有用户直接放行，新用户才检查）
+      const existing = db.getUserById(db.getDb().prepare('SELECT id FROM users WHERE nodeloc_id = ?').get(userInfo.id)?.id);
+      if (!existing) {
+        const maxUsers = parseInt(db.getSetting('max_users')) || 0;
+        if (maxUsers > 0 && db.getUserCount() >= maxUsers) {
+          return done(null, false, { message: '注册已满，暂不接受新用户' });
+        }
+      }
+
       // 创建或更新用户
       const user = db.findOrCreateUser(userInfo);
       if (user.is_blocked) {

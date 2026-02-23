@@ -23,7 +23,9 @@ router.get('/', (req, res) => {
     tgBotToken: db.getSetting('tg_bot_token') || '',
     tgChatId: db.getSetting('tg_chat_id') || '',
     tgEvents,
-    announcement: db.getSetting('announcement') || ''
+    announcement: db.getSetting('announcement') || '',
+    maxUsers: parseInt(db.getSetting('max_users')) || 0,
+    userCount: db.getUserCount()
   });
 });
 

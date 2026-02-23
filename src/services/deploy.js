@@ -13,7 +13,7 @@ const REGION_EMOJI = {
   'frankfurt': '🇩🇪', 'germany': '🇩🇪',
   'paris': '🇫🇷', 'france': '🇫🇷',
   'amsterdam': '🇳🇱', 'netherlands': '🇳🇱',
-  'virginia': '🇺🇸', 'ohio': '🇺🇸', 'oregon': '🇺🇸', 'california': '🇺🇸',
+  'virginia': '🇺🇸', 'ohio': '🇺🇸', 'oregon': '🇺🇸', 'california': '🇺🇸', 'portland': '🇺🇸', 'minkler': '🇺🇸', 'ashburn': '🇺🇸', 'san jose': '🇺🇸',
   'us': '🇺🇸', 'united states': '🇺🇸', 'america': '🇺🇸',
   'canada': '🇨🇦', 'brazil': '🇧🇷', 'são paulo': '🇧🇷',
 };
@@ -24,7 +24,7 @@ const CITY_CN = {
   'taipei': '台北', 'mumbai': '孟买', 'sydney': '悉尼',
   'london': '伦敦', 'frankfurt': '法兰克福', 'paris': '巴黎',
   'amsterdam': '阿姆斯特丹', 'virginia': '弗吉尼亚', 'ohio': '俄亥俄',
-  'oregon': '俄勒冈', 'california': '加利福尼亚', 'são paulo': '圣保罗',
+  'oregon': '俄勒冈', 'california': '加利福尼亚', 'portland': '波特兰', 'minkler': '明克勒', 'ashburn': '阿什本', 'san jose': '圣何塞', 'são paulo': '圣保罗',
   'toronto': '多伦多', 'jakarta': '雅加达', 'bangkok': '曼谷',
   'dubai': '迪拜', 'stockholm': '斯德哥尔摩', 'dublin': '都柏林',
   'milan': '米兰', 'zurich': '苏黎世', 'warsaw': '华沙',
@@ -32,7 +32,7 @@ const CITY_CN = {
 };
 
 function getRegionEmoji(city, country) {
-  const key = (city || country || '').toLowerCase();
+  const key = `${city || ''} ${country || ''}`.toLowerCase();
   for (const [k, v] of Object.entries(REGION_EMOJI)) {
     if (key.includes(k)) return v;
   }
@@ -227,7 +227,10 @@ async function deployNode(sshInfo, db) {
   if (sshInfo.socks5_host) {
     isHomeNetwork = true;
     const socks5Geo = await detectRegion(sshInfo.socks5_host);
-    displayGeo = socks5Geo;
+    // 家宽是内网 IP 时，地区查询会失败（Unknown），回退到节点公网地区
+    if (socks5Geo.city && socks5Geo.city !== 'Unknown' && socks5Geo.cityCN !== '未知') {
+      displayGeo = socks5Geo;
+    }
   }
 
   const existingNodes = db.getAllNodes();

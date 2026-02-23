@@ -5,8 +5,25 @@ const { formatBytes } = require('../services/traffic');
 const aiService = require('../services/ai');
 const { requireAuth } = require('../middleware/auth');
 const { aiLimiter, subLimiter } = require('../middleware/rateLimit');
+const QRCode = require('qrcode');
 
 const router = express.Router();
+
+function getRealClientIp(req) {
+  const cfIp = req.headers['cf-connecting-ip'];
+  if (cfIp) return String(cfIp).trim();
+
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) {
+    const first = String(xff).split(',')[0].trim();
+    if (first) return first;
+  }
+
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) return String(realIp).trim();
+
+  return req.ip;
+}
 
 // 首页 - 节点列表（每个用户看到自己的 UUID）
 router.get('/', requireAuth, (req, res) => {
@@ -119,13 +136,33 @@ router.post('/ai/chat/clear', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// 当前登录用户订阅二维码（便于手机扫码）
+router.get('/sub-qr', requireAuth, async (req, res) => {
+  try {
+    const subUrl = `${req.protocol}://${req.get('host')}/sub/${req.user.sub_token}`;
+    const png = await QRCode.toBuffer(subUrl, {
+      width: 300,
+      margin: 1,
+      errorCorrectionLevel: 'M'
+    });
+    res.set({
+      'Content-Type': 'image/png',
+      'Cache-Control': 'no-store'
+    });
+    res.send(png);
+  } catch (e) {
+    console.error('[二维码] 生成失败:', e.message);
+    res.status(500).send('二维码生成失败');
+  }
+});
+
 // 订阅接口（每个用户返回自己的 UUID）
 router.get('/sub/:token', subLimiter, (req, res) => {
   const user = db.getUserBySubToken(req.params.token);
   if (!user) return res.status(403).send('无效的订阅链接');
 
-  // 记录拉取 IP（优先 CF 真实 IP）
-  const clientIP = req.headers['cf-connecting-ip'] || req.headers['x-real-ip'] || req.ip;
+  // 记录拉取 IP（优先真实来源 IP）
+  const clientIP = getRealClientIp(req);
   db.logSubAccess(user.id, clientIP, req.headers['user-agent']);
 
   // 滥用检测：24h 内 ≥20 个不同 IP 触发通知（同一用户1小时内只通知一次）
@@ -159,7 +196,7 @@ router.get('/sub/:token', subLimiter, (req, res) => {
   // 获取用户流量用于 Subscription-Userinfo
   const traffic = db.getUserTraffic(user.id);
 
-  db.addAuditLog(user.id, 'sub_fetch', `订阅拉取 [${clientType}] IP: ${req.ip}`, req.ip);
+  db.addAuditLog(user.id, 'sub_fetch', `订阅拉取 [${clientType}] IP: ${clientIP}`, clientIP);
 
   const subInfo = `upload=${traffic.total_up}; download=${traffic.total_down}; total=107374182400; expire=0`;
 

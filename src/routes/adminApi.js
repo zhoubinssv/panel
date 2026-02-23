@@ -68,48 +68,6 @@ router.post('/nodes/deploy', (req, res) => {
   res.redirect('/admin?msg=deploying#nodes');
 });
 
-// ========== 手动添加节点（家宽/已部署）==========
-
-router.post('/nodes/manual', async (req, res) => {
-  const { host, port, uuid, name, remark } = req.body;
-  if (!host || !port || !uuid) return res.redirect('/admin#nodes');
-
-  const deployService = require('../services/deploy');
-  const geo = await deployService.detectRegion(host);
-  const existingNodes = db.getAllNodes();
-  const nodeName = name?.trim() || deployService.generateNodeName(geo, existingNodes);
-  const region = `${geo.emoji} ${geo.cityCN}`;
-
-  db.addNode({
-    name: nodeName, host,
-    port: parseInt(port), uuid,
-    region,
-    remark: remark || '🏠 家宽/手动',
-    is_active: 1
-  });
-  db.addAuditLog(req.user.id, 'node_manual_add', `手动添加: ${nodeName} (${host}:${port})`, req.ip);
-  res.redirect('/admin?msg=added#nodes');
-});
-
-// ========== 手动添加已有节点 ==========
-
-router.post('/nodes/add', (req, res) => {
-  const { name, host, port, region, ssh_host, ssh_user, ssh_password, ssh_key_path, remark } = req.body;
-  if (!name || !host || !port) return res.redirect('/admin#nodes');
-
-  db.addNode({
-    name, host,
-    port: parseInt(port),
-    uuid: uuidv4(),
-    ssh_host: ssh_host || host,
-    ssh_user: ssh_user || 'root',
-    ssh_password,
-    ssh_key_path,
-    region, remark
-  });
-  db.addAuditLog(req.user.id, 'node_add', `添加节点: ${name} (${host})`, req.ip);
-  res.redirect('/admin?msg=added#nodes');
-});
 
 router.post('/nodes/:id/delete', (req, res) => {
   const node = db.getNodeById(req.params.id);
@@ -333,6 +291,14 @@ router.post('/announcement', (req, res) => {
   res.json({ ok: true });
 });
 
+// 注册人数上限
+router.post('/max-users', (req, res) => {
+  const max = Math.max(0, parseInt(req.body.max) || 0);
+  db.setSetting('max_users', String(max));
+  db.addAuditLog(req.user.id, 'max_users', `设置注册上限: ${max === 0 ? '不限制' : max + '人'}`, req.ip);
+  res.json({ ok: true });
+});
+
 // 运维诊断
 router.get('/ops/list', (req, res) => {
   res.json(db.getAllDiagnoses(30));
@@ -341,10 +307,39 @@ router.get('/ops/list', (req, res) => {
 router.post('/ops/:id/diagnose', async (req, res) => {
   const node = db.getNodeById(req.params.id);
   if (!node) return res.status(404).json({ error: '节点不存在' });
-  const { autoRepair } = require('../services/health');
-  autoRepair(node).catch(e => console.error('[手动诊断]', e.message));
-  db.addAuditLog(req.user.id, 'ops_diagnose', `手动诊断: ${node.name}`, req.ip);
-  res.json({ ok: true });
+  if (!node.ssh_password && !node.ssh_key_path) return res.status(400).json({ error: '节点无 SSH 信息' });
+
+  const opsAi = require('../services/ops-ai');
+  const cfg = opsAi.getOpsConfig();
+  if (!cfg) return res.status(400).json({ error: '请先配置运维 AI' });
+
+  db.addAuditLog(req.user.id, 'ops_diagnose', `手动 AI 诊断: ${node.name}`, req.ip);
+
+  // 异步执行多轮诊断
+  const diagResult = db.addDiagnosis(node.id, `⏳ AI 多轮诊断中...`);
+  const diagId = diagResult.lastInsertRowid;
+
+  opsAi.interactiveDiagnose(node, (round, log) => {
+    db.updateDiagnosis(diagId, { diag_info: log, ai_analysis: `⏳ AI 诊断中（第 ${round} 轮）...` });
+  }).then(result => {
+    db.updateDiagnosis(diagId, {
+      status: result.success ? 'fixed' : 'analyzed',
+      diag_info: result.log,
+      ai_analysis: result.analysis,
+      fix_commands: '[]',
+      resolved_at: result.success ? new Date().toISOString() : null
+    });
+    if (result.success) {
+      db.updateNode(node.id, { is_active: 1, remark: '' });
+    }
+    const { notify } = require('../services/notify');
+    notify.ops(`🔧 手动诊断 ${node.name} 完成: ${result.success ? '✅ 已修复' : '⚠️ 未修复'}\n\n${result.analysis}`).catch(() => {});
+  }).catch(e => {
+    console.error('[手动诊断]', e.message);
+    db.updateDiagnosis(diagId, { status: 'no_ai', ai_analysis: `诊断失败: ${e.message}` });
+  });
+
+  res.json({ ok: true, diagId });
 });
 
 router.post('/ops/:id/execute', async (req, res) => {
@@ -424,6 +419,212 @@ router.get('/sub-abuse', (req, res) => {
     return { ...a, username: user?.username || '未知' };
   });
   res.json(result);
+});
+
+// ========== AWS 配置 ==========
+
+router.get('/aws/config', (req, res) => {
+  const accounts = db.getAwsAccounts();
+  res.json({
+    configured: accounts.length > 0,
+    count: accounts.length,
+    accounts: accounts.map(a => ({
+      id: a.id,
+      name: a.name,
+      defaultRegion: a.default_region,
+      socks5_host: a.socks5_host,
+      socks5_port: a.socks5_port,
+      enabled: !!a.enabled,
+      accessKeyMasked: a.access_key ? a.access_key.substring(0, 4) + '***' + a.access_key.slice(-4) : ''
+    }))
+  });
+});
+
+function parseSocks5Url(socks5Url) {
+  if (!socks5Url) return { host: null, port: 1080, user: null, pass: null };
+  const u = new URL(socks5Url);
+  if (!['socks5:', 'socks:'].includes(u.protocol)) throw new Error('仅支持 socks5:// 或 socks://');
+  if (!u.hostname || !u.port) throw new Error('请包含主机和端口');
+  return {
+    host: u.hostname,
+    port: parseInt(u.port) || 1080,
+    user: u.username ? decodeURIComponent(u.username) : null,
+    pass: u.password ? decodeURIComponent(u.password) : null
+  };
+}
+
+router.post('/aws/config', (req, res) => {
+  const { name, accessKey, secretKey, socks5Url } = req.body;
+  if (!name || !accessKey || !secretKey) {
+    return res.status(400).json({ error: '请填写账号名、Access Key、Secret Key' });
+  }
+
+  let socks = { host: null, port: 1080, user: null, pass: null };
+  try {
+    socks = parseSocks5Url(socks5Url);
+  } catch (e) {
+    return res.status(400).json({ error: `SOCKS5 URL 格式错误: ${e.message}` });
+  }
+
+  const aws = require('../services/aws');
+  aws.setAwsConfig({
+    name,
+    accessKey,
+    secretKey,
+    defaultRegion: 'us-east-1',
+    socks5Host: socks.host,
+    socks5Port: socks.port,
+    socks5User: socks.user,
+    socks5Pass: socks.pass
+  });
+  db.addAuditLog(req.user.id, 'aws_config', `新增 AWS 账号: ${name}`, req.ip);
+  res.json({ ok: true });
+});
+
+router.put('/aws/config/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const current = db.getAwsAccountById(id);
+  if (!current) return res.status(404).json({ error: '账号不存在' });
+
+  const { name, socks5Url } = req.body || {};
+  let socks;
+  try {
+    // 允许清空 socks：传空字符串
+    socks = socks5Url === '' ? { host: null, port: 1080, user: null, pass: null } : parseSocks5Url(socks5Url);
+  } catch (e) {
+    return res.status(400).json({ error: `SOCKS5 URL 格式错误: ${e.message}` });
+  }
+
+  db.updateAwsAccount(id, {
+    name: name || current.name,
+    socks5_host: socks.host,
+    socks5_port: socks.port,
+    socks5_user: socks.user,
+    socks5_pass: socks.pass
+  });
+
+  db.addAuditLog(req.user.id, 'aws_config_edit', `编辑 AWS 账号 #${id}`, req.ip);
+  res.json({ ok: true });
+});
+
+router.delete('/aws/config/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  db.deleteAwsAccount(id);
+  db.addAuditLog(req.user.id, 'aws_config_delete', `删除 AWS 账号 #${id}`, req.ip);
+  res.json({ ok: true });
+});
+
+router.post('/aws/socks-test', async (req, res) => {
+  const { socks5Url } = req.body || {};
+  if (!socks5Url) return res.status(400).json({ error: '请填写 SOCKS5 URL' });
+
+  let url;
+  try {
+    url = new URL(socks5Url);
+    if (!['socks5:', 'socks:'].includes(url.protocol)) throw new Error('仅支持 socks5:// 或 socks://');
+    if (!url.hostname || !url.port) throw new Error('请包含主机和端口');
+  } catch (e) {
+    return res.status(400).json({ error: `SOCKS5 URL 格式错误: ${e.message}` });
+  }
+
+  try {
+    const https = require('https');
+    const { SocksProxyAgent } = require('socks-proxy-agent');
+    const agent = new SocksProxyAgent(socks5Url);
+
+    const ip = await new Promise((resolve, reject) => {
+      const r = https.get('https://api.ipify.org?format=json', { agent, timeout: 12000 }, (resp) => {
+        let data = '';
+        resp.on('data', c => data += c);
+        resp.on('end', () => {
+          try {
+            const j = JSON.parse(data || '{}');
+            if (!j.ip) return reject(new Error('未获取到出口 IP'));
+            resolve(j.ip);
+          } catch {
+            reject(new Error('返回格式异常'));
+          }
+        });
+      });
+      r.on('timeout', () => r.destroy(new Error('连接超时')));
+      r.on('error', reject);
+    });
+
+    res.json({ ok: true, ip });
+  } catch (e) {
+    res.status(500).json({ error: e.message || '验证失败' });
+  }
+});
+
+// 列出 EC2/Lightsail 实例
+router.get('/aws/instances', async (req, res) => {
+  const aws = require('../services/aws');
+  const region = req.query.region || undefined;
+  const type = req.query.type || 'ec2';
+  const accountId = parseInt(req.query.accountId) || undefined;
+  try {
+    const instances = type === 'lightsail'
+      ? await aws.listLightsailInstances(region, accountId)
+      : await aws.listEC2Instances(region, accountId);
+    res.json(instances);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 绑定节点到 AWS 实例
+router.post('/nodes/:id/aws-bind', (req, res) => {
+  const { aws_instance_id, aws_type, aws_region, aws_account_id } = req.body;
+  const node = db.getNodeById(req.params.id);
+  if (!node) return res.status(404).json({ error: '节点不存在' });
+  db.updateNode(node.id, {
+    aws_instance_id: aws_instance_id || null,
+    aws_type: aws_type || 'ec2',
+    aws_region: aws_region || null,
+    aws_account_id: aws_account_id ? parseInt(aws_account_id) : null
+  });
+  db.addAuditLog(req.user.id, 'aws_bind', `绑定 AWS: ${node.name} → ${aws_instance_id} (${aws_type}) [账号:${aws_account_id || '默认'}]`, req.ip);
+  res.json({ ok: true });
+});
+
+// 手动换 IP
+router.post('/nodes/:id/swap-ip', async (req, res) => {
+  const node = db.getNodeById(req.params.id);
+  if (!node) return res.status(404).json({ error: '节点不存在' });
+  if (!node.aws_instance_id) return res.status(400).json({ error: '节点未绑定 AWS 实例' });
+
+  const aws = require('../services/aws');
+  db.addAuditLog(req.user.id, 'aws_swap_ip', `手动换 IP: ${node.name}`, req.ip);
+
+  try {
+    const result = await aws.swapNodeIp(node, node.aws_instance_id, node.aws_type, node.aws_region, node.aws_account_id);
+    const { notify } = require('../services/notify');
+    if (result.success) {
+      notify.ops(`🔄 ${node.name} 手动换 IP: ${result.oldIp} → ${result.newIp}`).catch(() => {});
+    }
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 终止 EC2 实例
+router.post('/aws/terminate', async (req, res) => {
+  const { instanceId, region, type, accountId } = req.body;
+  if (!instanceId) return res.status(400).json({ error: '缺少 instanceId' });
+  const aws = require('../services/aws');
+  try {
+    if (type === 'lightsail') {
+      return res.status(400).json({ error: 'Lightsail 暂不支持通过 API 终止，请到控制台操作' });
+    }
+    await aws.terminateEC2Instance(instanceId, region, accountId ? parseInt(accountId) : undefined);
+    db.addAuditLog(req.user.id, 'aws_terminate', `终止实例: ${instanceId}`, req.ip);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // 查看某用户的订阅拉取 IP
