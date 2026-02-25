@@ -6,7 +6,12 @@
     <input type="text" id="user-search" placeholder="搜索用户名..." class="bg-black/30 text-white px-3 py-1.5 rounded-xl border border-white/10 text-xs w-40">
   </div>
 
-  <div class="glass rounded-2xl overflow-hidden">
+  <!-- 移动端卡片容器 -->
+  <div class="sm:hidden space-y-3" id="users-cards">
+    <div class="text-center text-gray-500 text-sm py-8">加载中...</div>
+  </div>
+  <!-- 桌面端表格 -->
+  <div class="hidden sm:block glass rounded-2xl overflow-hidden">
     <div class="overflow-x-auto">
       <table class="w-full text-sm text-left">
         <thead class="text-gray-500 border-b border-white/5 text-xs">
@@ -22,6 +27,11 @@
       <span class="text-gray-500 text-xs" id="users-page-info"></span>
       <div class="flex gap-1" id="users-pagination"></div>
     </div>
+  </div>
+  <!-- 移动端分页 -->
+  <div class="sm:hidden flex items-center justify-between mt-3">
+    <span class="text-gray-500 text-xs" id="users-page-info-m"></span>
+    <div class="flex gap-1" id="users-pagination-m"></div>
   </div>
 
   <script>
@@ -42,17 +52,22 @@
       const resp = await fetch('/admin/api/users?' + params);
       const data = await resp.json();
       const tbody = document.getElementById('users-tbody');
+      const cards = document.getElementById('users-cards');
       const total = data.total;
       document.getElementById('users-total-count').textContent = total;
 
       if (!data.rows || data.rows.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="py-8 text-center text-gray-500">无匹配用户</td></tr>';
+        cards.innerHTML = '<div class="text-center text-gray-500 text-sm py-8">无匹配用户</div>';
         document.getElementById('users-page-info').textContent = '';
         document.getElementById('users-pagination').innerHTML = '';
+        document.getElementById('users-page-info-m').textContent = '';
+        document.getElementById('users-pagination-m').innerHTML = '';
         return;
       }
 
-      tbody.innerHTML = data.rows.map(u => {
+      // 公共数据
+      const rowsHtml = data.rows.map(u => {
         const statusClass = u.is_blocked ? 'bg-red-500/20 text-red-300' : u.is_frozen ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300';
         const statusText = u.is_blocked ? '已封禁' : u.is_frozen ? '已冻结' : '正常';
         const blockBtnClass = u.is_blocked ? 'text-emerald-400' : 'text-red-400';
@@ -60,6 +75,11 @@
         const limitText = u.traffic_limit ? _fmtBytes(u.traffic_limit) : '∞';
         const expiryText = u.expires_at ? u.expires_at.slice(0,10) : '永久';
         const expiryClass = u.expires_at && new Date(u.expires_at) < new Date() ? 'text-red-400' : 'text-gray-400';
+        return { u, statusClass, statusText, blockBtnClass, blockBtnText, limitText, expiryText, expiryClass };
+      });
+
+      // 桌面端表格
+      tbody.innerHTML = rowsHtml.map(({u, statusClass, statusText, blockBtnClass, blockBtnText, limitText, expiryText, expiryClass}) => {
         return `<tr class="border-b border-white/5 hover:bg-white/[0.02]">
           <td class="py-3 px-4 flex items-center gap-2">
             <img src="${u.avatar_url || ''}" class="w-6 h-6 rounded-full ring-1 ring-white/10 bg-gray-800" onerror="this.style.display='none'">
@@ -81,16 +101,44 @@
         </tr>`;
       }).join('');
 
+      // 移动端卡片
+      cards.innerHTML = rowsHtml.map(({u, statusClass, statusText, blockBtnClass, blockBtnText, limitText, expiryText, expiryClass}) => {
+        return `<div class="glass rounded-2xl p-4 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <img src="${u.avatar_url || ''}" class="w-6 h-6 rounded-full ring-1 ring-white/10 bg-gray-800" onerror="this.style.display='none'">
+              <span class="text-white text-sm font-medium">${u.username}</span>
+              ${u.is_admin ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">管理</span>' : ''}
+            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded-full ${statusClass}">${statusText}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-1.5 text-xs">
+            <div><span class="text-gray-500">ID</span><span class="block text-gray-400 mt-0.5">${u.nodeloc_id}</span></div>
+            <div><span class="text-gray-500">等级</span><span class="block text-gray-300 mt-0.5">${u.trust_level}</span></div>
+            <div><span class="text-gray-500">流量</span><span class="block text-gray-400 mt-0.5">${_fmtBytes(u.total_traffic || 0)} / <span class="cursor-pointer text-cyan-400" onclick="setTrafficLimit(${u.id}, '${u.username}', ${u.traffic_limit || 0})">${limitText}</span></span></div>
+            <div><span class="text-gray-500">到期</span><span class="block mt-0.5 cursor-pointer ${expiryClass}" onclick="setExpiry(${u.id}, '${u.username}', '${u.expires_at || ''}')">${expiryText}</span></div>
+            <div class="col-span-2"><span class="text-gray-500">最后登录</span><span class="text-gray-500 ml-2">${u.last_login || '-'}</span></div>
+          </div>
+          <div class="flex gap-3 pt-1.5 border-t border-white/5">
+            <form method="POST" action="/admin/api/users/${u.id}/toggle-block" class="inline"><input type="hidden" name="_csrf" value="${csrfToken}"><button class="text-xs ${blockBtnClass} hover:underline">${blockBtnText}</button></form>
+            <form method="POST" action="/admin/api/users/${u.id}/reset-token" class="inline"><input type="hidden" name="_csrf" value="${csrfToken}"><button type="button" class="text-xs text-amber-400 hover:underline" onclick="_confirm('重置订阅？').then(ok=>{if(ok)this.closest('form').submit()})">重置</button></form>
+          </div>
+        </div>`;
+      }).join('');
+
       // 分页信息
       const limit = 20;
       const pages = Math.ceil(total / limit);
       const start = (page - 1) * limit + 1;
       const end = Math.min(page * limit, total);
       document.getElementById('users-page-info').textContent = `第 ${start}-${end} 条，共 ${total} 条`;
+      document.getElementById('users-page-info-m').textContent = `${start}-${end} / ${total}`;
 
       // 分页按钮
       const nav = document.getElementById('users-pagination');
+      const navM = document.getElementById('users-pagination-m');
       nav.innerHTML = '';
+      navM.innerHTML = '';
       if (pages <= 1) return;
       const mkBtn = (text, p, active) => {
         const b = document.createElement('button');
@@ -99,11 +147,11 @@
         if (!active) b.onclick = () => loadUsers(p);
         return b;
       };
-      if (page > 1) nav.appendChild(mkBtn('‹', page - 1, false));
+      if (page > 1) { nav.appendChild(mkBtn('‹', page - 1, false)); navM.appendChild(mkBtn('‹', page - 1, false)); }
       let s = Math.max(1, page - 3), e = Math.min(pages, s + 6);
       if (e - s < 6) s = Math.max(1, e - 6);
-      for (let p = s; p <= e; p++) nav.appendChild(mkBtn(p, p, p === page));
-      if (page < pages) nav.appendChild(mkBtn('›', page + 1, false));
+      for (let p = s; p <= e; p++) { nav.appendChild(mkBtn(p, p, p === page)); navM.appendChild(mkBtn(p, p, p === page)); }
+      if (page < pages) { nav.appendChild(mkBtn('›', page + 1, false)); navM.appendChild(mkBtn('›', page + 1, false)); }
     };
 
     window.filterUsers = function() {
