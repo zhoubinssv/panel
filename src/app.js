@@ -65,6 +65,7 @@ setupAuth(app);
 
 const { authLimiter, adminLimiter } = require('./middleware/rateLimit');
 const { csrfProtection, csrfLocals } = require('./middleware/csrf');
+const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 // CSRF 防护
 app.use(csrfLocals);
@@ -97,43 +98,9 @@ app.get('/healthz', (req, res) => {
   }
 });
 
-// 404
-app.use((req, res) => {
-  res.status(404).send(`
-    <!DOCTYPE html><html><head><meta charset="UTF-8"><title>404 · 小姨子的诱惑</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍑</text></svg>">
-    <script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-[#0c0a0f] min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <p class="text-5xl mb-3">🍑</p>
-        <p class="text-6xl mb-4">🫥</p>
-        <h1 class="text-white text-2xl font-bold mb-2">页面不存在</h1>
-        <a href="/" class="text-rose-400 hover:underline">返回首页</a>
-      </div>
-    </body></html>
-  `);
-});
-
-// 全局错误处理
-app.use((err, req, res, next) => {
-  logger.error({ err, path: req.path }, '请求处理错误');
-  const isApi = req.path.startsWith('/admin/api') || req.headers.accept?.includes('json');
-  if (isApi) return res.status(500).json({ error: '服务器内部错误' });
-  res.status(500).send(`
-    <!DOCTYPE html><html><head><meta charset="UTF-8"><title>500 · 小姨子的诱惑</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍑</text></svg>">
-    <script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-[#0c0a0f] min-h-screen flex items-center justify-center">
-      <div class="text-center">
-        <p class="text-5xl mb-3">🍑</p>
-        <p class="text-6xl mb-4">💥</p>
-        <h1 class="text-white text-2xl font-bold mb-2">服务器开小差了</h1>
-        <p class="text-gray-400 mb-4">请稍后再试</p>
-        <a href="/" class="text-rose-400 hover:underline">返回首页</a>
-      </div>
-    </body></html>
-  `);
-});
+// 404 + 全局错误处理
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // 定时轮换任务（默认每天凌晨 3 点）
 cron.schedule('0 3 * * *', async () => {
