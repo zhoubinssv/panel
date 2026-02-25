@@ -31,7 +31,7 @@
   <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
     <!-- 流量概览 -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#f43f5e">
         <p class="text-gray-500 text-xs mb-1">节点在线用户</p>
         <p class="text-rose-400 text-lg font-bold" id="online-count">-</p>
@@ -45,16 +45,15 @@
         <p class="text-orange-400 text-lg font-bold"><%= formatBytes(traffic.total_up + traffic.total_down) %></p>
       </div>
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#06b6d4">
-        <p class="text-gray-500 text-xs mb-1">剩余流量</p>
-        <p class="text-cyan-400 text-lg font-bold"><%= trafficLimit > 0 ? formatBytes(Math.max(0, trafficLimit - traffic.total_up - traffic.total_down)) : '∞' %></p>
+        <p class="text-gray-500 text-xs mb-1"><%= expiresAt ? '剩余流量 / 到期' : '剩余流量' %></p>
+        <p class="text-cyan-400 text-lg font-bold">
+          <%= trafficLimit > 0 ? formatBytes(Math.max(0, trafficLimit - traffic.total_up - traffic.total_down)) : '∞' %>
+          <% if (expiresAt) { %>
+            <% const _daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000); %>
+            <span class="text-xs <%= _daysLeft <= 3 ? 'text-red-400' : 'text-gray-500' %> ml-1">· <%= _daysLeft > 0 ? _daysLeft + '天' : '已过期' %></span>
+          <% } %>
+        </p>
       </div>
-      <% if (expiresAt) { %>
-      <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#a78bfa">
-        <p class="text-gray-500 text-xs mb-1">账号到期</p>
-        <% const _daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000); %>
-        <p class="<%= _daysLeft <= 3 ? 'text-red-400' : 'text-violet-400' %> text-lg font-bold"><%= _daysLeft > 0 ? _daysLeft + ' 天' : '已过期' %></p>
-      </div>
-      <% } %>
     </div>
 
     <!-- 订阅链接 -->
