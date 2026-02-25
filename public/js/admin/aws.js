@@ -20,15 +20,15 @@ async function loadAwsConfig() {
 
   list.innerHTML = (cfg.accounts || []).map(a =>
     '<div class="flex items-center justify-between rounded-xl bg-black/20 border border-white/5 px-3 py-2.5">' +
-    '<div class="min-w-0"><div class="text-xs text-white font-medium truncate">#' + a.id + ' ' + a.name + '</div>' +
-    '<div class="text-[11px] text-gray-500 mt-0.5 truncate">' + a.accessKeyMasked + (a.socks5_host ? ' · SOCKS ' + a.socks5_host + ':' + a.socks5_port : '') + '</div></div>' +
+    '<div class="min-w-0"><div class="text-xs text-white font-medium truncate">#' + escapeHtml(a.id) + ' ' + escapeHtml(a.name) + '</div>' +
+    '<div class="text-[11px] text-gray-500 mt-0.5 truncate">' + escapeHtml(a.accessKeyMasked) + (a.socks5_host ? ' · SOCKS ' + escapeHtml(a.socks5_host) + ':' + escapeHtml(a.socks5_port) : '') + '</div></div>' +
     '<div class="flex items-center gap-2">' +
-    '<button type="button" class="text-gray-300 hover:text-white text-xs px-2 py-1 rounded-lg bg-white/5 border border-white/10" onclick="editAwsAccount(' + a.id + ')">编辑</button>' +
-    '<button type="button" class="text-red-400 hover:text-red-300 text-xs px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/20" onclick="deleteAwsAccount(' + a.id + ')">删除</button>' +
+    '<button type="button" class="text-gray-300 hover:text-white text-xs px-2 py-1 rounded-lg bg-white/5 border border-white/10" onclick="editAwsAccount(' + parseInt(a.id) + ')">编辑</button>' +
+    '<button type="button" class="text-red-400 hover:text-red-300 text-xs px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/20" onclick="deleteAwsAccount(' + parseInt(a.id) + ')">删除</button>' +
     '</div></div>'
   ).join('') || '<p class="text-gray-500 text-xs">暂无 AWS 账号</p>';
 
-  bindSel.innerHTML = (cfg.accounts || []).map(a => '<option value="' + a.id + '">#' + a.id + ' ' + a.name + '</option>').join('');
+  bindSel.innerHTML = (cfg.accounts || []).map(a => '<option value="' + escapeHtml(a.id) + '">#' + escapeHtml(a.id) + ' ' + escapeHtml(a.name) + '</option>').join('');
 }
 
 async function saveAwsConfig() {
@@ -166,28 +166,32 @@ async function loadAllInstances(force) {
     let html = '';
     for (const acc of accounts) {
       if (acc.instances.length === 0) continue;
-      html += '<div class="mb-3"><div class="text-xs text-gray-400 mb-2 font-medium">📦 ' + acc.accountName + ' (#' + acc.accountId + ')</div><div class="space-y-1.5">';
+      html += '<div class="mb-3"><div class="text-xs text-gray-400 mb-2 font-medium">📦 ' + escapeHtml(acc.accountName) + ' (#' + escapeHtml(acc.accountId) + ')</div><div class="space-y-1.5">';
       for (const inst of acc.instances) {
         const isBlocked = inst.boundNode && (inst.boundNode.remark?.includes('被墙') || inst.boundNode.remark?.includes('离线') || !inst.boundNode.is_active);
         const stateColor = inst.state === 'running' ? 'text-emerald-400' : inst.state === 'stopped' ? 'text-gray-500' : 'text-yellow-400';
         const stateDot = inst.state === 'running' ? 'bg-emerald-400' : inst.state === 'stopped' ? 'bg-gray-500' : 'bg-yellow-400';
         const rowBg = isBlocked ? 'bg-red-500/10 border border-red-500/20' : 'bg-black/20';
+        const safeInstId = escapeHtml(inst.instanceId);
+        const safeInstType = escapeHtml(inst.instanceType);
+        const safeRegion = escapeHtml(inst.region);
+        const safeAccId = parseInt(inst.accountId) || 0;
         html += '<div class="p-2.5 rounded-xl ' + rowBg + ' space-y-2">' +
           '<div class="flex items-center gap-2 flex-wrap">' +
           '<span class="inline-block w-2 h-2 rounded-full ' + stateDot + ' flex-shrink-0"></span>' +
-          '<span class="text-xs text-white font-medium">' + (inst.name || inst.instanceId) + '</span>' +
-          '<span class="text-[10px] ' + stateColor + '">' + inst.state + '</span>' +
-          '<span class="text-[10px] text-gray-600">' + inst.region + '</span>' +
-          '<span class="text-[10px] px-1 py-0.5 rounded ' + (inst.instanceType === 'lightsail' ? 'bg-purple-500/20 text-purple-300' : 'bg-sky-500/20 text-sky-300') + '">' + inst.instanceType + '</span></div>' +
+          '<span class="text-xs text-white font-medium">' + escapeHtml(inst.name || inst.instanceId) + '</span>' +
+          '<span class="text-[10px] ' + stateColor + '">' + escapeHtml(inst.state) + '</span>' +
+          '<span class="text-[10px] text-gray-600">' + safeRegion + '</span>' +
+          '<span class="text-[10px] px-1 py-0.5 rounded ' + (inst.instanceType === 'lightsail' ? 'bg-purple-500/20 text-purple-300' : 'bg-sky-500/20 text-sky-300') + '">' + safeInstType + '</span></div>' +
           '<div class="flex items-center gap-2 flex-wrap text-[10px]">' +
-          (inst.publicIp ? '<span class="text-blue-300 font-mono">' + inst.publicIp + '</span>' : '') +
-          (inst.boundNode ? '<span class="px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300">🔗 ' + inst.boundNode.name + '</span>' : '') +
+          (inst.publicIp ? '<span class="text-blue-300 font-mono">' + escapeHtml(inst.publicIp) + '</span>' : '') +
+          (inst.boundNode ? '<span class="px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300">🔗 ' + escapeHtml(inst.boundNode.name) + '</span>' : '') +
           (isBlocked ? '<span class="px-1 py-0.5 rounded bg-red-500/30 text-red-300">⚠️ 异常</span>' : '') + '</div>' +
           '<div class="flex items-center gap-1 flex-wrap">' +
-          (inst.state === 'stopped' ? '<button onclick="awsInstanceAction(\'start\',\'' + inst.instanceId + '\',\'' + inst.instanceType + '\',\'' + inst.region + '\',' + inst.accountId + ')" class="text-[10px] px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30">▶ 开机</button>' : '') +
-          (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'stop\',\'' + inst.instanceId + '\',\'' + inst.instanceType + '\',\'' + inst.region + '\',' + inst.accountId + ')" class="text-[10px] px-2 py-1 rounded-lg bg-gray-500/20 text-gray-300 hover:bg-gray-500/30">⏹ 关机</button>' : '') +
-          (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'swap-ip\',\'' + inst.instanceId + '\',\'' + inst.instanceType + '\',\'' + inst.region + '\',' + inst.accountId + ')" class="text-[10px] px-2 py-1 rounded-lg ' + (isBlocked ? 'bg-red-500/30 text-red-200 hover:bg-red-500/40 font-medium' : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30') + '">🔄 换IP</button>' : '') +
-          '<button onclick="awsInstanceAction(\'terminate\',\'' + inst.instanceId + '\',\'' + inst.instanceType + '\',\'' + inst.region + '\',' + inst.accountId + ')" class="text-[10px] px-2 py-1 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30">🗑 终止</button>' +
+          (inst.state === 'stopped' ? '<button onclick="awsInstanceAction(\'start\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30">▶ 开机</button>' : '') +
+          (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'stop\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] px-2 py-1 rounded-lg bg-gray-500/20 text-gray-300 hover:bg-gray-500/30">⏹ 关机</button>' : '') +
+          (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'swap-ip\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] px-2 py-1 rounded-lg ' + (isBlocked ? 'bg-red-500/30 text-red-200 hover:bg-red-500/40 font-medium' : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30') + '">🔄 换IP</button>' : '') +
+          '<button onclick="awsInstanceAction(\'terminate\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] px-2 py-1 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30">🗑 终止</button>' +
           '</div></div>';
       }
       html += '</div></div>';
@@ -227,7 +231,7 @@ async function awsInstanceAction(action, instanceId, type, region, accountId) {
 function showLaunchModal() {
   if (!window._awsAccounts || window._awsAccounts.length === 0) { showToast('请先新增 AWS 账号'); return; }
   const sel = document.getElementById('launch-account-id');
-  sel.innerHTML = window._awsAccounts.map(a => '<option value="' + a.id + '">#' + a.id + ' ' + a.name + '</option>').join('');
+  sel.innerHTML = window._awsAccounts.map(a => '<option value="' + escapeHtml(a.id) + '">#' + escapeHtml(a.id) + ' ' + escapeHtml(a.name) + '</option>').join('');
   updateLaunchSpecs();
   document.getElementById('aws-launch-modal').classList.remove('hidden');
 }

@@ -15,9 +15,38 @@ function switchLogType(type) {
 async function loadLogs(page) {
   const res = await fetch('/admin/api/logs?page=' + page + '&type=' + currentLogType);
   const d = await res.json();
-  document.getElementById('log-body').innerHTML = d.rows.map(l =>
-    '<tr class="border-b border-white/5"><td class="py-2 px-4 text-xs text-gray-500">' + l.created_at + '</td><td class="py-2 px-4 text-xs">' + (l.ip === 'system' ? '<span class="text-amber-400">系统</span>' : (l.username || '-')) + '</td><td class="py-2 px-4 text-xs">' + l.action + '</td><td class="py-2 px-4 text-xs text-gray-500 max-w-xs truncate">' + (l.detail || '') + '</td></tr>'
-  ).join('');
+  const tbody = document.getElementById('log-body');
+  tbody.innerHTML = '';
+  d.rows.forEach(l => {
+    const tr = document.createElement('tr');
+    tr.className = 'border-b border-white/5';
+
+    const tdTime = document.createElement('td');
+    tdTime.className = 'py-2 px-4 text-xs text-gray-500';
+    tdTime.textContent = l.created_at;
+
+    const tdUser = document.createElement('td');
+    tdUser.className = 'py-2 px-4 text-xs';
+    if (l.ip === 'system') {
+      const span = document.createElement('span');
+      span.className = 'text-amber-400';
+      span.textContent = '系统';
+      tdUser.appendChild(span);
+    } else {
+      tdUser.textContent = l.username || '-';
+    }
+
+    const tdAction = document.createElement('td');
+    tdAction.className = 'py-2 px-4 text-xs';
+    tdAction.textContent = l.action;
+
+    const tdDetail = document.createElement('td');
+    tdDetail.className = 'py-2 px-4 text-xs text-gray-500 max-w-xs truncate';
+    tdDetail.textContent = l.detail || '';
+
+    tr.append(tdTime, tdUser, tdAction, tdDetail);
+    tbody.appendChild(tr);
+  });
   document.getElementById('log-info').textContent = '共 ' + d.total + ' 条';
   const pager = document.getElementById('log-pager');
   pager.innerHTML = '';

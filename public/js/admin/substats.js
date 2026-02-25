@@ -18,19 +18,19 @@ async function loadSubStats(page) {
     }
     const riskBadge = r => {
       const cls = r === 'high' ? 'bg-red-500/20 text-red-300' : r === 'mid' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-gray-400';
-      return '<span class="text-xs px-2 py-0.5 rounded-full ' + cls + '">' + r + '</span>';
+      return '<span class="text-xs px-2 py-0.5 rounded-full ' + cls + '">' + escapeHtml(r) + '</span>';
     };
     container.innerHTML = '<div class="overflow-x-auto"><table class="w-full text-xs">' +
       '<thead><tr class="text-gray-500 border-b border-white/10"><th class="py-2 text-left">用户</th><th>拉取</th><th>IP数</th><th>最近拉取</th><th>平均间隔</th><th>风险</th><th></th></tr></thead><tbody>' +
       json.data.map(u =>
         '<tr class="border-b border-white/5 hover:bg-white/5">' +
-        '<td class="py-2 text-white">' + u.username + ' <span class="text-gray-600">ID:' + u.user_id + '</span></td>' +
-        '<td class="text-center text-gray-300">' + u.pull_count + '</td>' +
-        '<td class="text-center text-gray-300">' + u.ip_count + '</td>' +
-        '<td class="text-center text-gray-400">' + (u.last_access || '-') + '</td>' +
-        '<td class="text-center text-gray-400">' + u.avg_interval_sec + 's</td>' +
+        '<td class="py-2 text-white">' + escapeHtml(u.username) + ' <span class="text-gray-600">ID:' + escapeHtml(u.user_id) + '</span></td>' +
+        '<td class="text-center text-gray-300">' + escapeHtml(u.pull_count) + '</td>' +
+        '<td class="text-center text-gray-300">' + escapeHtml(u.ip_count) + '</td>' +
+        '<td class="text-center text-gray-400">' + escapeHtml(u.last_access || '-') + '</td>' +
+        '<td class="text-center text-gray-400">' + escapeHtml(u.avg_interval_sec) + 's</td>' +
         '<td class="text-center">' + riskBadge(u.risk_level) + '</td>' +
-        '<td class="text-right"><button onclick="showSubStatDetail(' + u.user_id + ',' + hours + ')" class="text-rose-400 hover:text-rose-300">详情</button></td></tr>'
+        '<td class="text-right"><button onclick="showSubStatDetail(' + parseInt(u.user_id) + ',' + parseInt(hours) + ')" class="text-rose-400 hover:text-rose-300">详情</button></td></tr>'
       ).join('') + '</tbody></table></div>';
     const totalPages = Math.ceil(json.total / json.limit);
     if (totalPages > 1) {
@@ -52,12 +52,12 @@ async function showSubStatDetail(userId, hours) {
     const res = await fetch('/admin/api/sub-stats/' + userId + '/detail?hours=' + hours);
     const d = await res.json();
     let html = '<div class="grid grid-cols-1 md:grid-cols-3 gap-4">';
-    html += '<div><h4 class="text-gray-400 text-xs mb-2">IP 分布 (' + d.ips.length + ')</h4><div class="space-y-1">' +
-      d.ips.map(ip => '<div class="flex justify-between p-1.5 rounded bg-black/20 text-xs"><span class="text-gray-300 font-mono">' + ip.ip + '</span><span class="text-gray-500">' + ip.count + '次 ' + ip.last_access + '</span></div>').join('') + '</div></div>';
+    html += '<div><h4 class="text-gray-400 text-xs mb-2">IP 分布 (' + escapeHtml(d.ips.length) + ')</h4><div class="space-y-1">' +
+      d.ips.map(ip => '<div class="flex justify-between p-1.5 rounded bg-black/20 text-xs"><span class="text-gray-300 font-mono">' + escapeHtml(ip.ip) + '</span><span class="text-gray-500">' + escapeHtml(ip.count) + '次 ' + escapeHtml(ip.last_access) + '</span></div>').join('') + '</div></div>';
     html += '<div><h4 class="text-gray-400 text-xs mb-2">UA TOP</h4><div class="space-y-1">' +
-      d.uas.map(ua => '<div class="p-1.5 rounded bg-black/20 text-xs"><span class="text-gray-300 break-all">' + (ua.ua || '(empty)') + '</span> <span class="text-gray-500">' + ua.count + '次</span></div>').join('') + '</div></div>';
+      d.uas.map(ua => '<div class="p-1.5 rounded bg-black/20 text-xs"><span class="text-gray-300 break-all">' + escapeHtml(ua.ua || '(empty)') + '</span> <span class="text-gray-500">' + escapeHtml(ua.count) + '次</span></div>').join('') + '</div></div>';
     html += '<div><h4 class="text-gray-400 text-xs mb-2">最近拉取</h4><div class="space-y-1">' +
-      d.timeline.map(t => '<div class="p-1.5 rounded bg-black/20 text-xs"><span class="text-gray-400">' + t.time + '</span> <span class="text-gray-300 font-mono">' + t.ip + '</span></div>').join('') + '</div></div>';
+      d.timeline.map(t => '<div class="p-1.5 rounded bg-black/20 text-xs"><span class="text-gray-400">' + escapeHtml(t.time) + '</span> <span class="text-gray-300 font-mono">' + escapeHtml(t.ip) + '</span></div>').join('') + '</div></div>';
     html += '</div>';
     container.innerHTML = html;
     document.getElementById('substats-detail-title').textContent = '用户 #' + userId + ' 详情';
@@ -76,7 +76,7 @@ async function showDetail(userId, hours) {
   const ips = await res.json();
   container.innerHTML = '<div class="space-y-1">' + ips.map(ip =>
     '<div class="flex items-center justify-between p-2 rounded-lg bg-black/20 text-xs">' +
-    '<span class="text-gray-300 font-mono">' + ip.ip + '</span>' +
-    '<div class="flex gap-3"><span class="text-gray-500">拉取 ' + ip.count + ' 次</span><span class="text-gray-600">' + ip.last_access + '</span></div></div>'
+    '<span class="text-gray-300 font-mono">' + escapeHtml(ip.ip) + '</span>' +
+    '<div class="flex gap-3"><span class="text-gray-500">拉取 ' + escapeHtml(ip.count) + ' 次</span><span class="text-gray-600">' + escapeHtml(ip.last_access) + '</span></div></div>'
   ).join('') + '</div>';
 }

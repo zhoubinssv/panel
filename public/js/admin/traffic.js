@@ -25,6 +25,18 @@ function switchRange(range) {
   loadTraffic(1);
 }
 
+function _buildTrafficRow(cells, classes) {
+  const tr = document.createElement('tr');
+  tr.className = 'border-b border-white/5 hover:bg-white/[0.02]';
+  cells.forEach((text, idx) => {
+    const td = document.createElement('td');
+    td.className = classes[idx];
+    td.textContent = text;
+    tr.appendChild(td);
+  });
+  return tr;
+}
+
 async function loadTraffic(page) {
   let url;
   if (currentRange === 'date') {
@@ -37,12 +49,16 @@ async function loadTraffic(page) {
   const d = await res.json();
   const body = document.getElementById('traffic-body');
   const offset = (d.page - 1) * 20;
+  body.innerHTML = '';
   if (d.rows.length === 0) {
     body.innerHTML = '<tr><td colspan="5" class="py-6 px-4 text-gray-600 text-xs text-center">该时段暂无流量数据</td></tr>';
   } else {
-    body.innerHTML = d.rows.map((u, i) =>
-      '<tr class="border-b border-white/5 hover:bg-white/[0.02]"><td class="py-2 px-4 text-[11px] text-gray-500">' + (offset + i + 1) + '</td><td class="py-2 px-4 text-xs text-white">' + u.username + '</td><td class="py-2 px-4 text-xs">' + fmtBytes(u.total_up) + '</td><td class="py-2 px-4 text-xs">' + fmtBytes(u.total_down) + '</td><td class="py-2 px-4 text-xs font-medium text-rose-400">' + fmtBytes(u.total_up + u.total_down) + '</td></tr>'
-    ).join('');
+    d.rows.forEach((u, i) => {
+      body.appendChild(_buildTrafficRow(
+        [offset + i + 1, u.username, fmtBytes(u.total_up), fmtBytes(u.total_down), fmtBytes(u.total_up + u.total_down)],
+        ['py-2 px-4 text-[11px] text-gray-500', 'py-2 px-4 text-xs text-white', 'py-2 px-4 text-xs', 'py-2 px-4 text-xs', 'py-2 px-4 text-xs font-medium text-rose-400']
+      ));
+    });
   }
   document.getElementById('traffic-info').textContent = '共 ' + d.total + ' 人';
   const pager = document.getElementById('traffic-pager');
@@ -62,12 +78,16 @@ async function loadNodeTraffic() {
   const res = await fetch('/admin/api/traffic/nodes?range=' + rangeParam);
   const d = await res.json();
   const body = document.getElementById('node-traffic-body');
+  body.innerHTML = '';
   if (d.rows.length === 0) {
     body.innerHTML = '<tr><td colspan="5" class="py-6 px-4 text-gray-600 text-xs text-center">暂无节点流量数据</td></tr>';
   } else {
-    body.innerHTML = d.rows.map((n, i) =>
-      '<tr class="border-b border-white/5 hover:bg-white/[0.02]"><td class="py-2 px-4 text-[11px] text-gray-500">' + (i + 1) + '</td><td class="py-2 px-4 text-xs text-white">' + n.name + '</td><td class="py-2 px-4 text-xs">' + fmtBytes(n.total_up) + '</td><td class="py-2 px-4 text-xs">' + fmtBytes(n.total_down) + '</td><td class="py-2 px-4 text-xs font-medium text-rose-400">' + fmtBytes(n.total_up + n.total_down) + '</td></tr>'
-    ).join('');
+    d.rows.forEach((n, i) => {
+      body.appendChild(_buildTrafficRow(
+        [i + 1, n.name, fmtBytes(n.total_up), fmtBytes(n.total_down), fmtBytes(n.total_up + n.total_down)],
+        ['py-2 px-4 text-[11px] text-gray-500', 'py-2 px-4 text-xs text-white', 'py-2 px-4 text-xs', 'py-2 px-4 text-xs', 'py-2 px-4 text-xs font-medium text-rose-400']
+      ));
+    });
   }
 }
 
