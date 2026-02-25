@@ -88,7 +88,7 @@
         <h2 class="text-white font-semibold">🌐 可用节点</h2>
         <span class="text-gray-600 text-xs"><%= userNodes.length %> 个节点</span>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 node-card-grid">
         <% if (userNodes.length === 0) { %>
           <div class="glass rounded-2xl p-8 col-span-full text-center">
             <p class="text-gray-500">暂无可用节点</p>
@@ -108,8 +108,8 @@
               <% } %>
             </div>
             <% if (n.region) { %><p class="text-gray-500 text-xs mb-3"><%= n.region %></p><% } %>
-            <div class="bg-black/30 rounded-lg p-2.5 mb-2.5">
-              <code class="text-rose-300 text-[11px] break-all select-all font-mono" id="link-<%= n.id %>"><%= n.link %></code>
+            <div class="bg-black/30 rounded-lg p-2.5 mb-2.5 overflow-hidden">
+              <code class="text-rose-300 text-[11px] break-all select-all font-mono vless-link leading-relaxed block max-h-20 overflow-y-auto" id="link-<%= n.id %>"><%= n.link %></code>
             </div>
             <button onclick="copyLink(<%= n.id %>)" class="w-full bg-rose-600/80 hover:bg-rose-500 text-white text-xs py-2 rounded-lg transition">复制链接</button>
           </div>

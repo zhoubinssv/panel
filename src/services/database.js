@@ -434,6 +434,7 @@ module.exports = {
   getTodayTraffic: (...a) => trafficRepo.getTodayTraffic(...a),
   getUsersTrafficByRange: (...a) => trafficRepo.getUsersTrafficByRange(...a),
   getNodesTrafficByRange: (...a) => trafficRepo.getNodesTrafficByRange(...a),
+  getTrafficTrend: (...a) => trafficRepo.getTrafficTrend(...a),
   // 设置 & 审计 & 白名单
   addAuditLog: (...a) => settingsRepo.addAuditLog(...a),
   getAuditLogs: (...a) => settingsRepo.getAuditLogs(...a),

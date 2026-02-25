@@ -17,4 +17,10 @@ router.get('/traffic/nodes', (req, res) => {
   res.json({ rows: db.getNodesTrafficByRange(range) });
 });
 
+router.get('/traffic/trend', (req, res) => {
+  const days = Math.min(parseInt(req.query.days) || 30, 90);
+  const rows = db.getTrafficTrend(days);
+  res.json(rows);
+});
+
 module.exports = router;

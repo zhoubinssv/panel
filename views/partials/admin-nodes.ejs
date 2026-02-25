@@ -90,22 +90,22 @@
   <!-- 添加节点 -->
   <details class="glass rounded-2xl">
     <summary class="text-rose-400 text-sm cursor-pointer hover:text-rose-300 p-4">➕ 添加节点（SSH 自动部署）</summary>
-    <form method="POST" action="/admin/api/nodes/deploy" class="px-4 pb-4 grid grid-cols-2 gap-3">
+    <form method="POST" action="/admin/api/nodes/deploy" class="px-4 pb-4 grid grid-cols-2 gap-3" onsubmit="return validateDeployForm(this)">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="text" name="host" placeholder="服务器 IP *" required class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <input type="password" name="ssh_password" placeholder="SSH 密码 *" required class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <input type="number" name="ssh_port" placeholder="SSH 端口（默认 22）" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
+      <input type="text" name="host" placeholder="服务器 IP *" required pattern="^[a-zA-Z0-9._-]{1,253}$" title="请输入有效的 IP 或域名" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
+      <input type="password" name="ssh_password" placeholder="SSH 密码 *" required minlength="1" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
+      <input type="number" name="ssh_port" placeholder="SSH 端口（默认 22）" min="1" max="65535" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
       <input type="text" name="ssh_user" placeholder="SSH 用户名（默认 root）" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
       <details class="col-span-2">
         <summary class="text-gray-500 text-xs cursor-pointer hover:text-gray-300">🔗 Socks5 落地（可选）</summary>
         <div class="grid grid-cols-2 gap-3 mt-2">
           <input type="text" name="socks5_host" placeholder="Socks5 地址" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-          <input type="number" name="socks5_port" placeholder="端口（默认 1080）" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
+          <input type="number" name="socks5_port" placeholder="端口（默认 1080）" min="1" max="65535" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
           <input type="text" name="socks5_user" placeholder="用户名" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
           <input type="password" name="socks5_pass" placeholder="密码" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
         </div>
       </details>
-      <button class="bg-rose-600 hover:bg-rose-500 text-white py-2.5 rounded-xl text-sm col-span-2 transition font-medium">🚀 部署</button>
+      <button class="bg-rose-600 hover:bg-rose-500 text-white py-2.5 rounded-xl text-sm col-span-2 transition font-medium" id="deploy-btn">🚀 部署</button>
     </form>
   </details>
 
@@ -114,6 +114,21 @@
 <script>
 // CSRF token
 const _csrf = '<%= csrfToken %>';
+
+// 部署表单校验
+function validateDeployForm(form) {
+  const host = form.host.value.trim();
+  const pwd = form.ssh_password.value;
+  if (!host) { toast('请填写服务器 IP', 2500, 'error'); form.host.focus(); return false; }
+  if (!/^[a-zA-Z0-9._-]{1,253}$/.test(host)) { toast('IP/域名格式不正确', 2500, 'error'); form.host.focus(); return false; }
+  if (!pwd) { toast('请填写 SSH 密码', 2500, 'error'); form.ssh_password.focus(); return false; }
+  const port = form.ssh_port.value;
+  if (port && (parseInt(port) < 1 || parseInt(port) > 65535)) { toast('SSH 端口范围 1-65535', 2500, 'error'); form.ssh_port.focus(); return false; }
+  const btn = document.getElementById('deploy-btn');
+  btn.textContent = '⏳ 部署中...';
+  btn.classList.add('btn-loading');
+  return true;
+}
 
 // 检测状态 (AJAX)
 async function doHealthCheck(btn) {

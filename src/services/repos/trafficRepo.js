@@ -82,6 +82,9 @@ function _rangeDateCondition(range) {
     const d = new Date(); d.setDate(d.getDate() - 29);
     return { where: 'AND t.date >= ?', params: [d.toISOString().slice(0, 10)] };
   }
+  if (range === 'all') return { where: '', params: [] };
+  // 支持具体日期 YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(range)) return { where: 'AND t.date = ?', params: [range] };
   return { where: '', params: [] };
 }
 
@@ -122,8 +125,23 @@ function getNodesTrafficByRange(range) {
   `).all(...params);
 }
 
+function getTrafficTrend(days = 30) {
+  const d = new Date(); d.setDate(d.getDate() - days + 1);
+  const startDate = d.toISOString().slice(0, 10);
+  return _getDb().prepare(`
+    SELECT date,
+      COALESCE(SUM(uplink), 0) as total_up,
+      COALESCE(SUM(downlink), 0) as total_down
+    FROM traffic_daily
+    WHERE date >= ?
+    GROUP BY date
+    ORDER BY date ASC
+  `).all(startDate);
+}
+
 module.exports = {
   init,
   recordTraffic, getUserTraffic, getAllUsersTraffic, getNodeTraffic,
-  getGlobalTraffic, getTodayTraffic, getUsersTrafficByRange, getNodesTrafficByRange
+  getGlobalTraffic, getTodayTraffic, getUsersTrafficByRange, getNodesTrafficByRange,
+  getTrafficTrend
 };
