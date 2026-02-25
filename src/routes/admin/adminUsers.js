@@ -1,7 +1,11 @@
 const express = require('express');
 const db = require('../../services/database');
 const { emitSyncAll } = require('../../services/configEvents');
-const { parseIntId } = require('../adminApi');
+
+function parseIntId(raw) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 const router = express.Router();
 
