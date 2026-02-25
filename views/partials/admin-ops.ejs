@@ -92,14 +92,16 @@
       <label class="flex items-center justify-between p-3 rounded-xl bg-black/20 cursor-pointer hover:bg-white/5 transition">
         <div>
           <span class="text-white text-sm">🔧 节点自动修复</span>
-          <span class="text-gray-500 text-[10px] ml-2">🔲 由 OpenClaw AI 巡检时执行</span>
+          <span class="text-emerald-400 text-[10px] ml-2 ops-active-badge" data-key="ops-auto-repair" style="display:none">✅ 已生效</span>
+          <span class="text-gray-500 text-[10px] ml-2 ops-inactive-badge" data-key="ops-auto-repair">🔲 未启用</span>
         </div>
         <input type="checkbox" id="ops-auto-repair" class="accent-rose-500">
       </label>
       <label class="flex items-center justify-between p-3 rounded-xl bg-black/20 cursor-pointer hover:bg-white/5 transition">
         <div>
           <span class="text-white text-sm">📈 自动扩缩容</span>
-          <span class="text-gray-500 text-[10px] ml-2">🔲 由 OpenClaw AI 巡检时执行</span>
+          <span class="text-emerald-400 text-[10px] ml-2 ops-active-badge" data-key="ops-auto-scale" style="display:none">✅ 已生效</span>
+          <span class="text-gray-500 text-[10px] ml-2 ops-inactive-badge" data-key="ops-auto-scale">🔲 未启用</span>
         </div>
         <input type="checkbox" id="ops-auto-scale" class="accent-rose-500">
       </label>
@@ -157,6 +159,23 @@
 
   const STATUS_COLORS = { pending: 'text-yellow-400 border-yellow-500/20', resolved: 'text-emerald-400 border-emerald-500/20', failed: 'text-red-400 border-red-500/20' };
 
+  function updateOpsBadges() {
+    document.querySelectorAll('.ops-active-badge').forEach(el => {
+      const cb = document.getElementById(el.dataset.key);
+      el.style.display = cb && cb.checked ? '' : 'none';
+    });
+    document.querySelectorAll('.ops-inactive-badge').forEach(el => {
+      const cb = document.getElementById(el.dataset.key);
+      el.style.display = cb && cb.checked ? 'none' : '';
+    });
+  }
+
+  // checkbox 变化时实时更新标记
+  ['ops-auto-repair', 'ops-auto-scale'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateOpsBadges);
+  });
+
   window.loadOpsDashboard = async function() {
     try {
       const [dashRes, eventsRes, cfgRes] = await Promise.all([
@@ -209,6 +228,9 @@
         if (k.type === 'bool') el.checked = val === 'true';
         else if (val) el.value = val;
       }
+
+      // 更新动态生效标记
+      updateOpsBadges();
     } catch (e) { console.error('ops dashboard error', e); }
   };
 
