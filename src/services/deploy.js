@@ -1,7 +1,11 @@
 const { NodeSSH } = require('node-ssh');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { randomPort } = require('../utils/vless');
 const { BEAUTIFUL_NAMES } = require('../utils/names');
+const { notify } = require('./notify');
 
 // 地区 emoji 映射
 const REGION_EMOJI = {
@@ -157,7 +161,7 @@ async function sftpWriteFile(ssh, remotePath, content) {
 // 将配置推送到节点并重启 xray（优先通过 Agent，SSH 后备）
 async function pushConfigToNode(node, config) {
   // 优先通过 Agent 推送
-  const agentWs = require('./agent-ws');
+  const agentWs = require('./agent-ws'); // 延迟加载避免循环依赖
   if (agentWs.isAgentOnline(node.id)) {
     try {
       const result = await agentWs.sendCommand(node.id, {
@@ -262,7 +266,7 @@ async function _syncAllNodesConfigImpl(db) {
   }
   console.log(`[配置同步] 完成 成功:${success} 失败:${failed}`);
   if (failed > 0) {
-    const db2 = require('./database');
+    const db2 = require('./database'); // 延迟加载避免循环依赖
     db2.addAuditLog(null, 'config_sync', `配置同步完成 成功:${success} 失败:${failed}`, 'system');
   }
   return { success, failed };
@@ -349,7 +353,7 @@ echo "INSTALL_OK"
     if (!privMatch || !pubMatch) throw new Error('Reality 密钥生成失败: ' + output.substring(0, 200));
     const realityPrivateKey = privMatch[1];
     const realityPublicKey = pubMatch[1];
-    const realityShortId = require('crypto').randomBytes(4).toString('hex');
+    const realityShortId = crypto.randomBytes(4).toString('hex');
     const sni = 'www.microsoft.com';
 
     db.updateNode(nodeId, { reality_private_key: realityPrivateKey, reality_public_key: realityPublicKey, reality_short_id: realityShortId, sni });
@@ -391,7 +395,7 @@ echo "INSTALL_OK"
       console.log(`[部署成功] ${name} (${sshInfo.host}:${port}) ${clients.length}个用户`);
 
       // TG 通知
-      try { const { notify } = require('./notify'); notify.deploy(name, true, `IP: ${sshInfo.host}:${port} | ${clients.length}个用户`); } catch {}
+      try { notify.deploy(name, true, `IP: ${sshInfo.host}:${port} | ${clients.length}个用户`); } catch {}
 
       // 自动安装 Agent
       try {
@@ -404,13 +408,13 @@ echo "INSTALL_OK"
       db.updateNode(nodeId, { remark: `❌ 部署失败: ${errMsg}` });
       db.addAuditLog(sshInfo.triggered_by || null, 'node_deploy_fail', `部署失败: ${name} - ${errMsg}`, 'system');
       console.error(`[部署失败] ${name}: ${errMsg}`);
-      try { const { notify } = require('./notify'); notify.deploy(name, false, errMsg); } catch {}
+      try { notify.deploy(name, false, errMsg); } catch {}
     }
   } catch (err) {
     db.updateNode(nodeId, { remark: `❌ ${err.message}` });
     db.addAuditLog(sshInfo.triggered_by || null, 'node_deploy_fail', `部署异常: ${name} - ${err.message}`, 'system');
     console.error(`[部署异常] ${name}: ${err.message}`);
-    try { const { notify } = require('./notify'); notify.deploy(name, false, err.message); } catch {}
+    try { notify.deploy(name, false, err.message); } catch {}
   } finally {
     ssh.dispose();
   }
@@ -445,8 +449,6 @@ async function installAgentOnNode(ssh, nodeId, db) {
   }
 
   // 读取 agent.js 内容并通过 SSH 写入节点
-  const fs = require('fs');
-  const path = require('path');
   const agentJsPath = path.join(__dirname, '..', '..', 'node-agent', 'agent.js');
   const agentCode = fs.readFileSync(agentJsPath, 'utf8');
 

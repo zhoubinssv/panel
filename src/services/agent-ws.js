@@ -6,6 +6,7 @@ const { WebSocketServer } = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./database');
 const healthService = require('./health');
+const { notify } = require('./notify');
 
 // 在线 agent 连接池：nodeId → { ws, nodeId, connectedAt, lastReport, reportData }
 const agents = new Map();
@@ -62,7 +63,6 @@ function init(server) {
           const node = db.getNodeById(nodeId);
           if (node) {
             db.addAuditLog(null, 'agent_offline', `节点 Agent 断开: ${node.name}`, 'system');
-            const { notify } = require('./notify');
             notify.nodeDown(`${node.name} (Agent 断开)`);
           }
         } catch {}
@@ -183,7 +183,6 @@ function handleAuth(ws, msg) {
   // 记录系统日志 + 触发上线通知
   db.addAuditLog(null, 'agent_online', `节点 Agent 上线: ${node.name} (${ws._agentState.ip})`, 'system');
   try {
-    const { notify } = require('./notify');
     notify.nodeUp(`${node.name} (Agent 连接)`);
   } catch {}
 }

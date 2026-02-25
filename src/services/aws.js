@@ -248,7 +248,7 @@ async function swapNodeIp(node, awsInstanceId, awsType, awsRegion, awsAccountId)
 
     // 3. 等待 SSH 可用（最多等 60 秒）
     l('等待 SSH 可用...');
-    const { checkPort } = require('./health');
+    const { checkPort } = require('./health'); // 延迟加载避免循环依赖
     let sshReady = false;
     for (let i = 0; i < 12; i++) {
       await new Promise(r => setTimeout(r, 5000));
@@ -263,7 +263,7 @@ async function swapNodeIp(node, awsInstanceId, awsType, awsRegion, awsAccountId)
     l('SSH 已就绪');
 
     // 4. 同步 xray 配置
-    const { syncNodeConfig } = require('./deploy');
+    const { syncNodeConfig } = require('./deploy'); // 延迟加载避免循环依赖
     const updatedNode = db.getNodeById(node.id);
     const syncOk = await syncNodeConfig(updatedNode, db);
     if (syncOk) {

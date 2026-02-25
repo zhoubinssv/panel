@@ -1,6 +1,7 @@
 const passport = require('passport');
 const OAuth2Strategy = require('passport-oauth2');
 const db = require('../services/database');
+const deployService = require('../services/deploy');
 
 function setupAuth(app) {
   passport.use('nodeloc', new OAuth2Strategy({
@@ -38,8 +39,7 @@ function setupAuth(app) {
       }
 
       // 异步同步节点配置（新用户需要把 UUID 推送到节点）
-      const { syncAllNodesConfig } = require('../services/deploy');
-      syncAllNodesConfig(db).catch(err => console.error('[配置同步]', err));
+      deployService.syncAllNodesConfig(db).catch(err => console.error('[配置同步]', err));
 
       return done(null, user);
     } catch (err) {

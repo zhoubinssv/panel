@@ -1,5 +1,6 @@
 const net = require('net');
 const db = require('./database');
+const { notify, send: notifySend } = require('./notify');
 
 // TCP 端口探测
 function checkPort(host, port, timeout = 5000) {
@@ -46,7 +47,6 @@ function checkTrafficExceed() {
       FROM traffic_daily t JOIN users u ON t.user_id = u.id
       WHERE t.date = ? GROUP BY t.user_id HAVING (total_up + total_down) >= ?
     `).all(today, 10 * 1073741824);
-    const { notify } = require('./notify');
     for (const u of todayTraffic) {
       const cacheKey = `traffic_notified_${u.user_id}_${today}`;
       if (!global[cacheKey]) {
@@ -121,7 +121,6 @@ function updateFromAgentReport(nodeId, reportData) {
   }
 
   // 状态变化通知
-  const { notify } = require('./notify');
   if (status !== node.is_active || (remark && remark !== node.remark)) {
     if (!status && node.is_active) {
       console.log(`[Agent] 节点 ${node.name} → ${remark}`);
@@ -134,7 +133,7 @@ function updateFromAgentReport(nodeId, reportData) {
           try {
             db.addAuditLog(null, 'auto_swap_ip_start', `被墙自动换 IP: ${node.name}`, 'system');
             notify.ops(`🧱 <b>Agent 检测到疑似被墙</b>\n节点: ${node.name}\n动作: 自动换 IP`);
-            const aws = require('./aws');
+            const aws = require('./aws'); // 延迟加载避免循环依赖
             const swap = await aws.swapNodeIp(node, node.aws_instance_id, node.aws_type, node.aws_region, node.aws_account_id);
             if (swap.success) {
               db.addAuditLog(null, 'auto_swap_ip_ok', `${node.name} 换 IP 成功: ${swap.oldIp || '?'} → ${swap.newIp}`, 'system');
@@ -181,7 +180,7 @@ function updateFromAgentReport(nodeId, reportData) {
       console.log(`[Agent] [手动节点自动移除] ${detail}`);
       db.addAuditLog(null, 'node_auto_remove_manual', detail, 'system');
       db.deleteNode(nodeId);
-      const { send } = require('./notify');
+      // notify already imported at top
       send(`🗑️ <b>手动节点已自动移除</b>\n节点: ${node.name}\n地址: ${node.host}:${node.port}\n原因: 连续 ${nextFailCount} 次检测失败 (${remark})\n时间: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`).catch(() => {});
       return;
     }

@@ -12,7 +12,8 @@ const helmet = require('helmet');
 const cron = require('node-cron');
 const path = require('path');
 const logger = require('./services/logger');
-const { performBackup } = require('./services/backup');
+const fs = require('fs');
+const { performBackup, BACKUP_DIR } = require('./services/backup');
 
 const { setupAuth } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
@@ -21,7 +22,9 @@ const adminRoutes = require('./routes/admin');
 const adminApiRoutes = require('./routes/adminApi');
 const rotateService = require('./services/rotate');
 const trafficService = require('./services/traffic');
-const { getDb } = require('./services/database');
+const dbModule = require('./services/database');
+const { getDb } = dbModule;
+const deployService = require('./services/deploy');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -137,7 +140,7 @@ cron.schedule('0 3 * * *', async () => {
 // 每天凌晨 4 点清理过期数据 + 自动冻结不活跃用户
 cron.schedule('0 4 * * *', async () => {
   try {
-    const db = require('./services/database');
+    const db = dbModule;
     const d = db.getDb();
     const r1 = d.prepare("DELETE FROM ai_chats WHERE created_at < datetime('now', '-30 days')").run();
     const r2 = d.prepare("DELETE FROM ai_sessions WHERE updated_at < datetime('now', '-30 days')").run();
@@ -150,7 +153,7 @@ cron.schedule('0 4 * * *', async () => {
       logger.info({ count: frozen.length, users: frozen.map(u => u.username) }, '自动冻结不活跃用户');
       db.addAuditLog(null, 'auto_freeze', `自动冻结 ${frozen.length} 个用户: ${frozen.map(u => u.username).join(', ')}`, 'system');
       // 同步节点配置，移除冻结用户的 UUID
-      const { syncAllNodesConfig } = require('./services/deploy');
+      const { syncAllNodesConfig } = deployService;
       await syncAllNodesConfig(db);
     }
   } catch (err) { logger.error({ err }, '清理/冻结失败'); }
@@ -160,15 +163,15 @@ cron.schedule('0 4 * * *', async () => {
 const server = app.listen(PORT, () => {
   logger.info({ port: PORT, env: process.env.NODE_ENV || 'development', whitelist: process.env.WHITELIST_ENABLED === 'true' }, '🚀 VLESS 节点面板已启动');
   // 记录面板启动
-  const db = require('./services/database');
+  const db = dbModule;
   db.addAuditLog(null, 'panel_start', `面板启动 端口:${PORT} 环境:${process.env.NODE_ENV || 'development'}`, 'system');
 
   // O7: 启动时清理过期审计日志
   cleanAuditLogs();
 
   // O4: 启动时创建备份目录并执行首次备份
-  const { BACKUP_DIR } = require('./services/backup');
-  require('fs').mkdirSync(BACKUP_DIR, { recursive: true });
+
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
 });
 
 // 初始化 WebSocket Agent 服务

@@ -5,6 +5,10 @@ const { formatBytes } = require('../services/traffic');
 const { requireAuth } = require('../middleware/auth');
 const { subLimiter } = require('../middleware/rateLimit');
 const QRCode = require('qrcode');
+const { notify } = require('../services/notify');
+const { getOnlineCache } = require('../services/health');
+
+
 
 const router = express.Router();
 
@@ -154,7 +158,7 @@ router.get('/sub/:token', subLimiter, (req, res) => {
       global._abuseCache.set(user.id, now);
       // 清理过期条目
       for (const [k, v] of global._abuseCache) { if (now - v > 3600000) global._abuseCache.delete(k); }
-      const { notify } = require('../services/notify');
+      
       notify.abuse(user.username, ips.length);
     }
   }
@@ -225,7 +229,7 @@ router.get('/sub/:token', subLimiter, (req, res) => {
 
 // 在线用户数（从巡检缓存读取，每 5 分钟自动刷新）
 router.get('/online-count', requireAuth, (req, res) => {
-  const { getOnlineCache } = require('../services/health');
+  
   const cache = getOnlineCache();
   const summary = cache.summary || { online: '-', nodes: 0 };
   // 前台显示 2 倍在线人数

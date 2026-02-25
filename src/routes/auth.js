@@ -1,6 +1,8 @@
 const express = require('express');
+const crypto = require('crypto');
 const passport = require('passport');
 const db = require('../services/database');
+const deployService = require('../services/deploy');
 
 const router = express.Router();
 
@@ -12,7 +14,7 @@ router.get('/login', (req, res) => {
 // 发起 OAuth
 router.get('/nodeloc', (req, res, next) => {
   // 生成 state 防 CSRF
-  const state = require('crypto').randomBytes(16).toString('hex');
+  const state = crypto.randomBytes(16).toString('hex');
   req.session.oauthState = state;
   passport.authenticate('nodeloc', { state })(req, res, next);
 });
@@ -36,8 +38,7 @@ router.get('/callback', (req, res, next) => {
       db.addAuditLog(user.id, 'login', `用户 ${user.username} 登录`, loginIP);
       // 如果用户刚被解冻，异步同步节点配置
       if (user._wasFrozen) {
-        const { syncAllNodesConfig } = require('../services/deploy');
-        syncAllNodesConfig(db).catch(() => {});
+        deployService.syncAllNodesConfig(db).catch(() => {});
       }
       res.redirect('/');
     });

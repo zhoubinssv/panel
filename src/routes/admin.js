@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../services/database');
 const { formatBytes } = require('../services/traffic');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const agentWs = require('../services/agent-ws');
 
 const router = express.Router();
 router.use(requireAuth, requireAdmin);
@@ -11,7 +12,6 @@ router.get('/', (req, res) => {
   ['tg_on_node_down','tg_on_node_blocked','tg_on_rotate','tg_on_abuse','tg_on_traffic','tg_on_register','tg_on_deploy'].forEach(k => {
     tgEvents[k] = db.getSetting(k) === 'true';
   });
-  const agentWs = require('../services/agent-ws');
   const onlineAgents = new Set(agentWs.getConnectedAgents().map(a => a.nodeId));
 
   res.render('admin', {
