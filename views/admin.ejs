@@ -34,20 +34,21 @@
       </select>
     </div>
     <div class="relative">
-      <div class="flex gap-1 glass-solid rounded-2xl p-1.5 overflow-x-auto scrollbar-hide" style="-webkit-overflow-scrolling:touch">
+      <div class="flex gap-1 glass-solid rounded-2xl p-1.5 overflow-x-auto scrollbar-hide tab-bar" style="-webkit-overflow-scrolling:touch">
         <button onclick="switchTab('nodes')" class="tab-btn active text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="nodes">🌐 节点</button>
         <button onclick="switchTab('users')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="users">👥 用户</button>
         <button onclick="switchTab('traffic')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="traffic">📊 流量</button>
         <button onclick="switchTab('whitelist')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="whitelist">🔒 白名单</button>
         <button onclick="switchTab('logs')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="logs">📋 日志</button>
-        <button onclick="switchTab('abuse')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="abuse">📈 订阅统计</button>
         <button onclick="switchTab('notify')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="notify">🔔 通知</button>
+        <button onclick="switchTab('abuse')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="abuse">📈 订阅</button>
         <button onclick="switchTab('aws')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="aws">☁️ AWS</button>
         <button onclick="switchTab('ops')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="ops">🧠 运维</button>
-        <button onclick="switchTab('diary')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="diary">📔 运营日记</button>
-        <button onclick="switchTab('docs')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="docs">📖 使用说明</button>
         <button onclick="switchTab('backup')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="backup">💾 备份</button>
+        <button onclick="switchTab('diary')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="diary">📔 日记</button>
+        <button onclick="switchTab('docs')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="docs">📖 说明</button>
       </div>
+      <div class="tab-fade-right pointer-events-none absolute right-0 top-0 bottom-0 w-12 rounded-r-2xl" style="background:linear-gradient(to right, transparent, rgba(15,11,30,0.95))"></div>
       <div class="sm:hidden text-[10px] text-gray-600 mt-1 text-right">可左右滑动查看更多功能</div>
     </div>
   </div>
@@ -85,6 +86,28 @@
       if (name === 'backup') loadBackups();
     }
     if (location.hash.slice(1)) switchTab(location.hash.slice(1));
+
+    // Tab 滚动渐隐提示
+    (function() {
+      const bar = document.querySelector('.tab-bar');
+      const fade = document.querySelector('.tab-fade-right');
+      if (bar && fade) {
+        function checkFade() {
+          const atEnd = bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 10;
+          fade.style.opacity = atEnd ? '0' : '1';
+        }
+        bar.addEventListener('scroll', checkFade);
+        checkFade();
+        // 切换tab时滚动到可见
+        const origSwitch = window.switchTab;
+        window.switchTab = function(name) {
+          origSwitch(name);
+          const btn = bar.querySelector('[data-tab="'+name+'"]');
+          if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          setTimeout(checkFade, 300);
+        };
+      }
+    })();
     const _msg = new URLSearchParams(location.search).get('msg');
     if (_msg) { const m = {deploying:'🚀 部署中，请稍后刷新查看',added:'✅ 节点已添加',dup:'⚠️ IP 已存在'}; if (m[_msg]) showToast(m[_msg]); history.replaceState(null,'',location.pathname+location.hash); }
 
