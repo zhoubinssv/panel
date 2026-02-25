@@ -148,26 +148,7 @@
       <% }); %>
     </div>
 
-    <!-- 流量使用明细 -->
-    <div class="glass rounded-2xl p-5">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-white font-semibold text-sm">📊 流量使用明细</h2>
-        <select id="traffic-days" onchange="loadTrafficDetail()" class="bg-black/30 text-white text-xs px-3 py-1.5 rounded-lg border border-white/10">
-          <option value="7">最近 7 天</option>
-          <option value="30" selected>最近 30 天</option>
-          <option value="90">最近 90 天</option>
-        </select>
-      </div>
-      <canvas id="traffic-chart" height="160" class="mb-4"></canvas>
-      <div class="overflow-x-auto">
-        <table class="w-full text-xs text-left" id="traffic-detail-table">
-          <thead class="text-gray-500 border-b border-white/5">
-            <tr><th class="py-2 px-3">日期</th><th class="py-2 px-3">节点</th><th class="py-2 px-3">上传</th><th class="py-2 px-3">下载</th><th class="py-2 px-3">合计</th></tr>
-          </thead>
-          <tbody class="text-gray-300" id="traffic-detail-body"></tbody>
-        </table>
-      </div>
-    </div>
+    <!-- 流量使用明细 (已移除) -->
   </main>
 
   <script>
@@ -252,68 +233,6 @@
       btn.disabled = false;
     }
 
-    // Sprint 6: 流量明细
-    function fmtB(b) {
-      if (b < 1024) return b + ' B';
-      if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
-      if (b < 1073741824) return (b/1048576).toFixed(2) + ' MB';
-      return (b/1073741824).toFixed(2) + ' GB';
-    }
-
-    let _chart = null;
-    async function loadTrafficDetail() {
-      const days = document.getElementById('traffic-days').value;
-      try {
-        const r = await fetch('/api/traffic-detail?days=' + days);
-        const d = await r.json();
-        if (!d.ok) return;
-        // 表格
-        const tbody = document.getElementById('traffic-detail-body');
-        tbody.innerHTML = d.detail.slice(0, 100).map(r =>
-          `<tr class="border-b border-white/5"><td class="py-1.5 px-3">${r.date}</td><td class="py-1.5 px-3">${r.node_name||'已删除'}</td><td class="py-1.5 px-3">${fmtB(r.uplink)}</td><td class="py-1.5 px-3">${fmtB(r.downlink)}</td><td class="py-1.5 px-3">${fmtB(r.uplink+r.downlink)}</td></tr>`
-        ).join('') || '<tr><td colspan="5" class="py-4 text-center text-gray-500">暂无数据</td></tr>';
-        // 图表
-        const canvas = document.getElementById('traffic-chart');
-        const ctx = canvas.getContext('2d');
-        if (_chart) { _chart = null; }
-        const trend = d.trend;
-        if (trend.length === 0) { ctx.clearRect(0,0,canvas.width,canvas.height); return; }
-        drawChart(ctx, canvas, trend);
-      } catch(e) {}
-    }
-
-    function drawChart(ctx, canvas, trend) {
-      const W = canvas.width = canvas.offsetWidth * 2;
-      const H = canvas.height = 320;
-      ctx.clearRect(0,0,W,H);
-      const pad = {t:20,r:20,b:40,l:60};
-      const cw = W-pad.l-pad.r, ch = H-pad.t-pad.b;
-      const maxVal = Math.max(...trend.map(t=>t.total_up+t.total_down), 1);
-      // 网格
-      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-      for (let i=0;i<=4;i++) {
-        const y = pad.t + ch*(1-i/4);
-        ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
-        ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.font='18px sans-serif'; ctx.textAlign='right';
-        ctx.fillText(fmtB(maxVal*i/4), pad.l-8, y+5);
-      }
-      // 柱状图
-      const bw = Math.max(2, cw/trend.length - 2);
-      trend.forEach((t,i) => {
-        const x = pad.l + (i+0.5)*cw/trend.length - bw/2;
-        const val = t.total_up+t.total_down;
-        const h = (val/maxVal)*ch;
-        const grad = ctx.createLinearGradient(0,pad.t+ch-h,0,pad.t+ch);
-        grad.addColorStop(0,'rgba(244,63,94,0.8)'); grad.addColorStop(1,'rgba(251,146,60,0.3)');
-        ctx.fillStyle=grad;
-        ctx.fillRect(x, pad.t+ch-h, bw, h);
-        if (trend.length <= 14) {
-          ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.font='16px sans-serif'; ctx.textAlign='center';
-          ctx.save(); ctx.translate(x+bw/2, H-5); ctx.rotate(-0.5); ctx.fillText(t.date.slice(5),0,0); ctx.restore();
-        }
-      });
-    }
-
-    loadTrafficDetail();
+    loadTrafficDetail = function(){};
   </script>
 <%- include('partials/foot') %>
