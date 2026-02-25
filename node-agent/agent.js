@@ -15,6 +15,7 @@ const crypto = require('crypto');
 const CONFIG_PATH = '/etc/vless-agent/config.json';
 const XRAY_CONFIG_PATH = '/usr/local/etc/xray/config.json';
 const AGENT_PATH = '/opt/vless-agent/agent.js';
+const AGENT_VERSION = process.env.AGENT_VERSION || '1.1.0';
 
 const CHINA_PROBE_TARGETS = [
   { host: '220.202.155.242', port: 80 },
@@ -60,6 +61,19 @@ const EXEC_WHITELIST = [
   ...(process.env.AGENT_EXEC_WHITELIST ? process.env.AGENT_EXEC_WHITELIST.split(',') : []),
 ];
 const EXEC_WHITELIST_ENABLED = config.execWhitelistEnabled !== false && process.env.AGENT_EXEC_WHITELIST_DISABLED !== 'true';
+const AGENT_CAPABILITIES = {
+  tlsStrict: !INSECURE_TLS,
+  execWhitelist: EXEC_WHITELIST_ENABLED,
+  selfHeal: true,
+  selfUpdate: true,
+};
+const reconnectMetrics = {
+  disconnectCount: 0,
+  lastDisconnectAt: null,
+  lastReconnectAt: null,
+  consecutiveReconnects: 0,
+};
+
 let ws = null;
 let reconnectDelay = 1000;
 let heartbeatTimer = null;
@@ -198,6 +212,9 @@ async function report() {
     sendMsg({
       type: 'report',
       ts: Date.now(),
+      version: AGENT_VERSION,
+      capabilities: AGENT_CAPABILITIES,
+      reconnectMetrics,
       xrayAlive: xrayActive,
       trafficRecords: traffic,
       cnReachable,
@@ -329,8 +346,12 @@ function connect() {
     log('WS', '已连接，发送认证...');
     reconnectDelay = 1000;
     lastActivity = Date.now();
+    if (reconnectMetrics.consecutiveReconnects > 0) {
+      reconnectMetrics.lastReconnectAt = new Date().toISOString();
+      reconnectMetrics.consecutiveReconnects = 0;
+    }
     // 发送认证消息
-    sendMsg({ type: 'auth', token: config.token });
+    sendMsg({ type: 'auth', token: config.token, version: AGENT_VERSION, capabilities: AGENT_CAPABILITIES });
     // 立即上报一次
     setTimeout(report, 1000);
     // 心跳
@@ -355,6 +376,9 @@ function connect() {
 
   ws.on('close', (code, reason) => {
     log('WS', `断开 code=${code} reason=${reason || ''}`);
+    reconnectMetrics.disconnectCount += 1;
+    reconnectMetrics.consecutiveReconnects += 1;
+    reconnectMetrics.lastDisconnectAt = new Date().toISOString();
     cleanup();
     scheduleReconnect();
   });

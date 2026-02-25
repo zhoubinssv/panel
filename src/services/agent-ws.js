@@ -10,6 +10,8 @@ const { notify } = require('./notify');
 
 // 在线 agent 连接池：nodeId → { ws, nodeId, connectedAt, lastReport, reportData }
 const agents = new Map();
+// 节点连接指标：nodeId → { disconnectCount, lastDisconnectAt, lastReconnectAt, consecutiveReconnects }
+const agentMetrics = new Map();
 
 // 待响应的指令回调：cmdId → { resolve, reject, timer }
 const pendingCommands = new Map();
@@ -21,6 +23,25 @@ const CMD_TIMEOUT = 30000;
 
 let wss = null;
 let pingTimer = null;
+
+function getOrCreateMetrics(nodeId) {
+  if (!agentMetrics.has(nodeId)) {
+    agentMetrics.set(nodeId, {
+      disconnectCount: 0,
+      lastDisconnectAt: null,
+      lastReconnectAt: null,
+      consecutiveReconnects: 0,
+    });
+  }
+  return agentMetrics.get(nodeId);
+}
+
+function markDisconnected(nodeId) {
+  const metrics = getOrCreateMetrics(nodeId);
+  metrics.disconnectCount += 1;
+  metrics.consecutiveReconnects += 1;
+  metrics.lastDisconnectAt = new Date().toISOString();
+}
 
 /**
  * 初始化 WebSocket 服务，挂载到 HTTP server
@@ -56,6 +77,7 @@ function init(server) {
       clearTimeout(ws._authTimer);
       const { nodeId } = ws._agentState;
       if (nodeId && agents.get(nodeId)?.ws === ws) {
+        markDisconnected(nodeId);
         agents.delete(nodeId);
         console.log(`[Agent-WS] 节点 #${nodeId} 断开连接`);
         // 记录系统日志 + 触发下线通知
@@ -78,6 +100,7 @@ function init(server) {
   pingTimer = setInterval(() => {
     for (const [nodeId, agent] of agents) {
       if (agent.ws.readyState !== 1) {
+        markDisconnected(nodeId);
         agents.delete(nodeId);
         continue;
       }
@@ -85,6 +108,7 @@ function init(server) {
       try {
         agent.ws.send(JSON.stringify({ type: 'ping', id: uuidv4() }));
       } catch {
+        markDisconnected(nodeId);
         agents.delete(nodeId);
         continue;
       }
@@ -92,6 +116,7 @@ function init(server) {
       setTimeout(() => {
         if (agents.has(nodeId) && !agents.get(nodeId)._pongReceived) {
           console.log(`[Agent-WS] 节点 #${nodeId} pong 超时，断开`);
+          markDisconnected(nodeId);
           try { agent.ws.terminate(); } catch {}
           agents.delete(nodeId);
         }
@@ -136,7 +161,7 @@ function handleMessage(ws, msg) {
  * 处理认证
  */
 function handleAuth(ws, msg) {
-  const { token, nodeId } = msg;
+  const { token, nodeId, version, capabilities } = msg;
 
   if (!token || !nodeId) {
     return ws.close(4004, '缺少 token 或 nodeId');
@@ -166,6 +191,12 @@ function handleAuth(ws, msg) {
   ws._agentState.authenticated = true;
   ws._agentState.nodeId = nodeId;
 
+  const metrics = getOrCreateMetrics(nodeId);
+  if (metrics.consecutiveReconnects > 0) {
+    metrics.lastReconnectAt = new Date().toISOString();
+    metrics.consecutiveReconnects = 0;
+  }
+
   agents.set(nodeId, {
     ws,
     nodeId,
@@ -174,6 +205,9 @@ function handleAuth(ws, msg) {
     connectedAt: new Date().toISOString(),
     lastReport: null,
     reportData: null,
+    version: version || null,
+    capabilities: capabilities || null,
+    reconnectMetrics: { ...metrics },
     _pongReceived: true,
   });
 
@@ -195,13 +229,22 @@ function handleReport(ws, msg) {
   const agent = agents.get(nodeId);
   if (!agent) return;
 
-  const { xrayAlive, cnReachable, loadAvg, memUsage, diskUsage, trafficRecords } = msg;
+  const { xrayAlive, cnReachable, loadAvg, memUsage, diskUsage, trafficRecords, version, capabilities, reconnectMetrics } = msg;
   const now = new Date().toISOString();
 
   // 更新 agent 连接池中的上报数据（供 getAgentReport 查询）
   const reportData = { xrayAlive, cnReachable, loadAvg, memUsage, diskUsage, reportedAt: now };
   agent.lastReport = now;
   agent.reportData = reportData;
+  if (version) agent.version = version;
+  if (capabilities) agent.capabilities = capabilities;
+  if (reconnectMetrics) {
+    agent.reconnectMetrics = reconnectMetrics;
+    const metrics = getOrCreateMetrics(nodeId);
+    Object.assign(metrics, reconnectMetrics);
+  } else {
+    agent.reconnectMetrics = { ...getOrCreateMetrics(nodeId) };
+  }
 
   // 委托 health.js 统一处理状态更新、流量保存、通知等
   healthService.updateFromAgentReport(nodeId, { xrayAlive, cnReachable, trafficRecords });
@@ -279,6 +322,9 @@ function getConnectedAgents() {
       connectedAt: agent.connectedAt,
       lastReport: agent.lastReport,
       reportData: agent.reportData,
+      version: agent.version || null,
+      capabilities: agent.capabilities || null,
+      reconnectMetrics: agent.reconnectMetrics || { ...getOrCreateMetrics(nodeId) },
     });
   }
   return result;
