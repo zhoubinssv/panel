@@ -7,301 +7,138 @@
 
   <!-- 目录导航 -->
   <div class="glass rounded-2xl p-5">
-    <h3 class="text-white text-sm font-medium mb-3">📖 小姨子的诱惑 · 使用说明</h3>
+    <h3 class="text-white text-sm font-medium mb-3">📖 管理后台使用说明（按当前功能重写）</h3>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
       <button onclick="scrollToDoc('overview')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">🍑</div><div class="text-[11px] text-gray-400 mt-0.5">系统概览</div></button>
-      <button onclick="scrollToDoc('nodes')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">🌐</div><div class="text-[11px] text-gray-400 mt-0.5">节点管理</div></button>
-      <button onclick="scrollToDoc('users')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">👥</div><div class="text-[11px] text-gray-400 mt-0.5">用户管理</div></button>
-      <button onclick="scrollToDoc('sub')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">📡</div><div class="text-[11px] text-gray-400 mt-0.5">订阅系统</div></button>
-      <button onclick="scrollToDoc('aws')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">☁️</div><div class="text-[11px] text-gray-400 mt-0.5">AWS 集成</div></button>
-      <button onclick="scrollToDoc('agent')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">🤝</div><div class="text-[11px] text-gray-400 mt-0.5">Agent 系统</div></button>
-      <button onclick="scrollToDoc('ai-ops')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">🧠</div><div class="text-[11px] text-gray-400 mt-0.5">AI 运维</div></button>
-      <button onclick="scrollToDoc('api')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">🔌</div><div class="text-[11px] text-gray-400 mt-0.5">API 接口</div></button>
+      <button onclick="scrollToDoc('nodes')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">🌐</div><div class="text-[11px] text-gray-400 mt-0.5">节点</div></button>
+      <button onclick="scrollToDoc('users')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">👥</div><div class="text-[11px] text-gray-400 mt-0.5">用户</div></button>
+      <button onclick="scrollToDoc('traffic')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">📊</div><div class="text-[11px] text-gray-400 mt-0.5">流量</div></button>
+      <button onclick="scrollToDoc('whitelist')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">🔒</div><div class="text-[11px] text-gray-400 mt-0.5">白名单</div></button>
+      <button onclick="scrollToDoc('logs')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">📋</div><div class="text-[11px] text-gray-400 mt-0.5">日志</div></button>
+      <button onclick="scrollToDoc('abuse')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">📈</div><div class="text-[11px] text-gray-400 mt-0.5">订阅统计</div></button>
+      <button onclick="scrollToDoc('notify')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">🔔</div><div class="text-[11px] text-gray-400 mt-0.5">通知</div></button>
+      <button onclick="scrollToDoc('aws')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">☁️</div><div class="text-[11px] text-gray-400 mt-0.5">AWS</div></button>
+      <button onclick="scrollToDoc('ops')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">🧠</div><div class="text-[11px] text-gray-400 mt-0.5">AI 运维</div></button>
+      <button onclick="scrollToDoc('diary')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">📔</div><div class="text-[11px] text-gray-400 mt-0.5">运营日记</div></button>
+      <button onclick="scrollToDoc('backup')" class="text-left p-2.5 rounded-xl bg-black/20 hover:bg-white/5 transition"><div class="text-sm">💾</div><div class="text-[11px] text-gray-400 mt-0.5">备份恢复</div></button>
     </div>
   </div>
 
-  <!-- ========== 系统概览 ========== -->
   <div class="doc-section glass rounded-2xl p-5" id="doc-overview">
     <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">🍑</span> 系统概览</h3>
-    <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
-      <p><span class="text-white font-medium">小姨子的诱惑</span> 是一个 VLESS 代理面板，支持多节点管理、用户权限控制、自动轮换、AWS 云集成和 AI 无人值守运维。</p>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-gray-400 text-[11px] mb-2">技术栈</div>
-        <div class="flex flex-wrap gap-1.5">
-          <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Node.js</span>
-          <span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300">Express</span>
-          <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">SQLite</span>
-          <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300">PM2</span>
-          <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300">Xray Reality</span>
-          <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300">Tailwind CSS</span>
-          <span class="px-2 py-0.5 rounded bg-pink-500/20 text-pink-300">OpenClaw AI</span>
-        </div>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-gray-400 text-[11px] mb-2">核心架构</div>
-        <pre class="text-[11px] text-gray-400 font-mono">用户 → NodeLoc OAuth → 获取订阅链接
-面板 ←WebSocket→ Agent ←→ 节点 Xray
-  ↕                          ↕
-SQLite                 AWS EC2/Lightsail
-  ↕
-OpenClaw AI (无人值守运维)</pre>
-      </div>
+    <div class="space-y-2 text-xs text-gray-300 leading-relaxed">
+      <p>本后台用于统一管理 <span class="text-white">节点、用户、流量、通知、AWS、AI 运维、备份</span> 等核心能力。</p>
+      <p>顶部 Tab 可切换模块；手机端建议使用下拉框快速切换。部分耗时功能（如 AWS 实例扫描、备份恢复）有明显加载/确认提示。</p>
+      <p class="text-amber-300">建议运维顺序：先看「🧠 运维」和「📋 日志」，再处理「🌐 节点 / 👥 用户」。</p>
     </div>
   </div>
 
-  <!-- ========== 节点管理 ========== -->
   <div class="doc-section glass rounded-2xl p-5" id="doc-nodes">
     <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">🌐</span> 节点管理</h3>
-    <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🚀 一键部署</div>
-        <p>输入 IP + SSH 密码 → 自动安装 Xray → 生成 Reality 密钥 → 配置多用户 → 安装 Agent → 自动命名（如 🇯🇵 东京-波光粼粼）。</p>
-        <p class="text-gray-500 mt-1">支持 SOCKS5 落地模式：填入代理地址，流量通过代理出站（家宽落地 🏠）。</p>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🎲 自动轮换</div>
-        <p>定期轮换端口+UUID 增加安全性，每 7 天重置订阅 Token。手动轮换只换端口+UUID。</p>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🏷️ 节点等级 Lv.0-4</div>
-        <p>节点设最低等级，用户 trust_level 不够看不到高等级节点。白名单用户无视限制。</p>
-      </div>
-    </div>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 一键部署节点：填写 IP 与 SSH 信息后自动部署。</li>
+      <li>• 节点支持编辑 host、重启 Xray、删除节点等操作。</li>
+      <li>• 支持节点等级控制（按用户等级分配可见节点）。</li>
+      <li>• 支持节点与 AWS 实例绑定后执行换 IP 操作。</li>
+      <li>• 节点备注可标记异常状态（如离线/被墙）用于运维判断。</li>
+    </ul>
   </div>
 
-  <!-- ========== 用户管理 ========== -->
   <div class="doc-section glass rounded-2xl p-5" id="doc-users">
     <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">👥</span> 用户管理</h3>
-    <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🔐 认证</div>
-        <p>NodeLoc 论坛 OAuth 登录，自动同步头像、等级。支持注册人数限制。</p>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">👤 操作</div>
-        <ul class="space-y-1 mt-1">
-          <li>• <span class="text-white">封禁/解封</span> — 封禁后配置同步到所有节点，无法使用代理</li>
-          <li>• <span class="text-white">重置订阅</span> — 生成新 Token，旧链接失效</li>
-          <li>• <span class="text-white">流量限额</span> — 单用户/全局默认，超额自动冻结</li>
-        </ul>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🎫 白名单</div>
-        <ul class="space-y-1 mt-1">
-          <li>• <span class="text-white">注册白名单</span> — 满额时仍可注册，成功后自动移除</li>
-          <li>• <span class="text-white">节点白名单</span> — 无视节点等级限制</li>
-        </ul>
-      </div>
-    </div>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 支持用户名搜索、分页浏览、状态查看（正常/冻结/封禁）。</li>
+      <li>• 可封禁/解封、重置订阅 Token。</li>
+      <li>• 可单独设置用户流量限额（支持无限）。</li>
+      <li>• 可设置用户到期时间（留空为永不过期）。</li>
+      <li>• 支持查看用户等级、最后登录时间、已用流量。</li>
+    </ul>
   </div>
 
-  <!-- ========== 订阅系统 ========== -->
-  <div class="doc-section glass rounded-2xl p-5" id="doc-sub">
-    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">📡</span> 订阅系统</h3>
-    <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">📋 自动识别客户端</div>
-        <ul class="space-y-1 mt-1">
-          <li>• <span class="text-cyan-300">v2rayN/v2rayNG</span> — Base64 VLESS 链接</li>
-          <li>• <span class="text-blue-300">Clash/Stash</span> — YAML 配置（含分组策略）</li>
-          <li>• <span class="text-purple-300">Surge</span> — Surge 格式</li>
-          <li>• <span class="text-green-300">Shadowrocket</span> — Base64 VLESS 链接</li>
-          <li>• 强制指定：<code class="text-gray-400">?type=clash|surge|v2ray</code></li>
-        </ul>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🔗 订阅地址</div>
-        <p><code class="text-gray-400">GET /sub/:token</code> — 每用户唯一，支持二维码。响应头含流量信息 + 更新间隔。</p>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🛡️ 防滥用</div>
-        <p>接口限流 + 24h 内 ≥20 IP 拉取同一订阅触发 TG 通知 + 后台查看 IP/UA/频率/风险等级。</p>
-      </div>
-    </div>
+  <div class="doc-section glass rounded-2xl p-5" id="doc-traffic">
+    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">📊</span> 流量统计</h3>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 支持按时段查看用户流量排行（今日/近7天/自定义日期）。</li>
+      <li>• 支持节点维度流量统计，便于识别高负载节点。</li>
+      <li>• 提供流量趋势图（Chart.js）用于观察增长走势。</li>
+    </ul>
   </div>
 
-  <!-- ========== AWS 集成 ========== -->
+  <div class="doc-section glass rounded-2xl p-5" id="doc-whitelist">
+    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">🔒</span> 白名单</h3>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 注册白名单：在注册人数满额时仍允许指定用户名注册。</li>
+      <li>• 节点白名单：白名单用户可无视节点等级限制，访问全部节点。</li>
+      <li>• 两类白名单均支持后台直接添加/移除。</li>
+    </ul>
+  </div>
+
+  <div class="doc-section glass rounded-2xl p-5" id="doc-logs">
+    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">📋</span> 日志中心</h3>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 系统日志：记录系统行为、自动化动作、运维事件。</li>
+      <li>• 操作日志：记录后台用户操作行为。</li>
+      <li>• 支持分页查看与一键清空（危险操作，建议谨慎）。</li>
+    </ul>
+  </div>
+
+  <div class="doc-section glass rounded-2xl p-5" id="doc-abuse">
+    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">📈</span> 订阅访问统计</h3>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 统计订阅拉取次数、IP 数、最近拉取时间、平均间隔。</li>
+      <li>• 支持按时间窗口和排序方式筛选。</li>
+      <li>• 可仅查看高风险用户，并展开用户 IP/UA/时间线详情。</li>
+    </ul>
+  </div>
+
+  <div class="doc-section glass rounded-2xl p-5" id="doc-notify">
+    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">🔔</span> 通知与全局设置</h3>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 公告管理：设置前台公告，留空可清除。</li>
+      <li>• 注册人数限制：0 表示不限制。</li>
+      <li>• 默认流量限额：支持保存并一键应用到全部用户。</li>
+      <li>• Telegram 通知：配置 Bot Token/Chat ID，支持发送测试消息。</li>
+      <li>• 通知事件开关：节点离线、被墙、轮换、异常拉取等可独立开关。</li>
+    </ul>
+  </div>
+
   <div class="doc-section glass rounded-2xl p-5" id="doc-aws">
     <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">☁️</span> AWS 集成</h3>
-    <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🔧 支持</div>
-        <p><span class="text-sky-300">EC2</span>（弹性 IP） + <span class="text-purple-300">Lightsail</span>（静态 IP）：换 IP、启停、终止、创建。多账号+SOCKS5 代理。AK/SK 加密存储。</p>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🔗 节点绑定后</div>
-        <ul class="space-y-1 mt-1">
-          <li>• <span class="text-white">一键换 IP</span> — 释放旧 IP → 分配新 IP → 更新数据库 → 等 SSH → 同步配置</li>
-          <li>• <span class="text-white">被墙自动换</span> — AI 检测端口不通 → 自动换 IP</li>
-          <li>• <span class="text-white">一键创建部署</span> — 选账号+区域+规格 → 自动创建+部署+绑定</li>
-        </ul>
-      </div>
-    </div>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 账号管理：新增/编辑/删除 AWS 账号，支持 SOCKS5 代理验证。</li>
+      <li>• 实例仪表盘：查看实例状态，执行开机/关机/终止/换 IP。</li>
+      <li>• 节点绑定：节点可绑定 EC2 或 Lightsail 实例，便于一键换 IP。</li>
+      <li>• 新建实例并部署：可直接创建实例并自动部署节点服务。</li>
+    </ul>
   </div>
 
-  <!-- ========== Agent 系统 ========== -->
-  <div class="doc-section glass rounded-2xl p-5" id="doc-agent">
-    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">🤝</span> Agent 系统</h3>
-    <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">📡 架构</div>
-        <p>每节点一个轻量 Agent（Node.js 单文件），WebSocket 长连接面板。自动安装，systemd 托管。</p>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">📊 每 60s 上报</div>
-        <p>Xray 状态 + 按用户维度流量统计 + 中国可达性（TCP 探测 3 个 IP） + 系统负载/内存/磁盘。</p>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🎮 远程指令</div>
-        <div class="grid grid-cols-2 gap-1 mt-1">
-          <span><code class="text-gray-400">ping</code> — 存活检测</span>
-          <span><code class="text-gray-400">restart_xray</code> — 重启 Xray</span>
-          <span><code class="text-gray-400">update_config</code> — 推送配置</span>
-          <span><code class="text-gray-400">exec</code> — 远程执行命令</span>
-          <span><code class="text-gray-400">self_update</code> — 自更新</span>
-        </div>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🔄 自愈</div>
-        <p>Xray 挂了自动重启 + WebSocket 断线重连 + Watchdog 兜底（2 分钟无连接强制重连）。</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========== AI 运维 ========== -->
-  <div class="doc-section glass rounded-2xl p-5" id="doc-ai-ops">
+  <div class="doc-section glass rounded-2xl p-5" id="doc-ops">
     <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">🧠</span> AI 运维</h3>
-    <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🏗️ 工作方式</div>
-        <p>本机 OpenClaw AI 通过心跳定时巡检，直接操作 sqlite3/pm2/ssh，无中间层。</p>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">🔄 自动化能力</div>
-        <ul class="space-y-1 mt-1">
-          <li>• 面板守护（挂了自动重启）</li>
-          <li>• 节点巡检（TCP 探测端口）</li>
-          <li>• 被墙自动换 IP</li>
-          <li>• 节点自动修复（Agent/SSH 重启 Xray）</li>
-          <li>• 自动扩缩容（AWS 创建+部署）</li>
-          <li>• 运营日记（自动记录每次操作）</li>
-        </ul>
-      </div>
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-1">📦 新服务器部署</div>
-        <pre class="text-[11px] text-gray-400 font-mono">npm i -g openclaw
-cd vless-panel/openclaw-ops && bash setup.sh
-openclaw gateway start</pre>
-      </div>
-    </div>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 运维看板显示：节点在线概况、最近巡检、今日巡检/换IP/修复次数。</li>
+      <li>• 运维配置项：自动换 IP、自动修复、自动扩缩容、面板守护等。</li>
+      <li>• 事件时间线：展示 health_check、换 IP、修复、部署等运维事件。</li>
+      <li>• 诊断记录：汇总自动诊断和处理历史，便于复盘。</li>
+    </ul>
   </div>
 
-  <!-- ========== API 接口 ========== -->
-  <div class="doc-section glass rounded-2xl p-5" id="doc-api">
-    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">🔌</span> API 接口参考</h3>
-    <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
-      <p class="text-gray-500">所有 <code>/admin/api/*</code> 需管理员 Session。POST/PUT/DELETE 的 JSON 请求免 CSRF。</p>
+  <div class="doc-section glass rounded-2xl p-5" id="doc-diary">
+    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">📔</span> 运营日记</h3>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 记录运维中的关键动作与结论（修复、换 IP、部署、里程碑等）。</li>
+      <li>• 支持按时间线查看，便于后续追踪和交接。</li>
+      <li>• 建议把“做了什么 + 为什么做 + 结果如何”写清楚。</li>
+    </ul>
+  </div>
 
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-2">🌐 节点</div>
-        <table class="w-full text-[11px]"><tbody>
-          <tr class="border-b border-white/5"><td class="py-1 text-emerald-400 w-14">POST</td><td class="text-gray-400">/nodes/deploy</td><td class="text-gray-500">部署新节点</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-red-400">POST</td><td class="text-gray-400">/nodes/:id/delete</td><td class="text-gray-500">删除节点（远端停服务）</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/nodes/:id/update-host</td><td class="text-gray-500">更新 IP</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/nodes/:id/update-level</td><td class="text-gray-500">设等级</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/nodes/:id/restart-xray</td><td class="text-gray-500">重启 Xray</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/nodes/:id/swap-ip</td><td class="text-gray-500">换 IP（需 AWS 绑定）</td></tr>
-          <tr><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/nodes/:id/aws-bind</td><td class="text-gray-500">绑定/解绑 AWS 实例</td></tr>
-        </tbody></table>
-      </div>
-
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-2">👥 用户</div>
-        <table class="w-full text-[11px]"><tbody>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400 w-14">POST</td><td class="text-gray-400">/users/:id/toggle-block</td><td class="text-gray-500">封禁/解封</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/users/:id/reset-token</td><td class="text-gray-500">重置订阅</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/users/:id/traffic-limit</td><td class="text-gray-500">设流量限额</td></tr>
-          <tr><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/default-traffic-limit</td><td class="text-gray-500">默认限额 + /apply 批量应用</td></tr>
-        </tbody></table>
-      </div>
-
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-2">🔒 白名单</div>
-        <table class="w-full text-[11px]"><tbody>
-          <tr class="border-b border-white/5"><td class="py-1 text-emerald-400 w-14">POST</td><td class="text-gray-400">/whitelist/add | /remove</td><td class="text-gray-500">节点白名单</td></tr>
-          <tr><td class="py-1 text-emerald-400">POST</td><td class="text-gray-400">/register-whitelist/add | /remove</td><td class="text-gray-500">注册白名单</td></tr>
-        </tbody></table>
-      </div>
-
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-2">☁️ AWS</div>
-        <table class="w-full text-[11px]"><tbody>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400 w-14">GET</td><td class="text-gray-400">/aws/config</td><td class="text-gray-500">获取账号列表</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-emerald-400">POST</td><td class="text-gray-400">/aws/config</td><td class="text-gray-500">新增账号</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">PUT</td><td class="text-gray-400">/aws/config/:id</td><td class="text-gray-500">编辑账号</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-red-400">DELETE</td><td class="text-gray-400">/aws/config/:id</td><td class="text-gray-500">删除账号</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400">GET</td><td class="text-gray-400">/aws/all-instances</td><td class="text-gray-500">所有实例仪表盘</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-emerald-400">POST</td><td class="text-gray-400">/aws/start | /stop | /terminate</td><td class="text-gray-500">实例启停/终止</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/aws/swap-ip</td><td class="text-gray-500">实例换 IP</td></tr>
-          <tr><td class="py-1 text-emerald-400">POST</td><td class="text-gray-400">/aws/launch-and-deploy</td><td class="text-gray-500">一键创建+部署</td></tr>
-        </tbody></table>
-      </div>
-
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-2">🤝 Agent</div>
-        <table class="w-full text-[11px]"><tbody>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400 w-14">GET</td><td class="text-gray-400">/agents</td><td class="text-gray-500">在线 Agent 列表</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/agents/:nodeId/command</td><td class="text-gray-500">发送指令</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/agents/update-all</td><td class="text-gray-500">批量更新 Agent</td></tr>
-          <tr><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/agent-token/regenerate</td><td class="text-gray-500">重新生成 Token</td></tr>
-        </tbody></table>
-      </div>
-
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-2">📊 数据 & 配置</div>
-        <table class="w-full text-[11px]"><tbody>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400 w-14">GET</td><td class="text-gray-400">/logs?page=&type=</td><td class="text-gray-500">审计日志（system/user/all）</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-red-400">POST</td><td class="text-gray-400">/logs/clear</td><td class="text-gray-500">清空日志</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400">GET</td><td class="text-gray-400">/traffic?range=&page=</td><td class="text-gray-500">用户流量统计</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400">GET</td><td class="text-gray-400">/traffic/nodes?range=</td><td class="text-gray-500">节点流量统计</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400">GET</td><td class="text-gray-400">/sub-stats?hours=&sort=</td><td class="text-gray-500">订阅拉取统计</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400">GET</td><td class="text-gray-400">/diary?page=</td><td class="text-gray-500">运营日记</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400">GET</td><td class="text-gray-400">/ops-config</td><td class="text-gray-500">AI 运维配置</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/ops-config</td><td class="text-gray-500">更新运维配置</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/notify/config</td><td class="text-gray-500">TG 通知配置</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/notify/test</td><td class="text-gray-500">发送测试通知</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/notify/event</td><td class="text-gray-500">开关通知事件</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/announcement</td><td class="text-gray-500">设置公告</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/max-users</td><td class="text-gray-500">设注册上限</td></tr>
-          <tr><td class="py-1 text-amber-400">POST</td><td class="text-gray-400">/health-check</td><td class="text-gray-500">Agent 健康检测</td></tr>
-        </tbody></table>
-      </div>
-
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-2">📡 公开接口（无需认证）</div>
-        <table class="w-full text-[11px]"><tbody>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400 w-14">GET</td><td class="text-gray-400">/sub/:token</td><td class="text-gray-500">订阅链接（自动识别客户端格式）</td></tr>
-          <tr class="border-b border-white/5"><td class="py-1 text-cyan-400">GET</td><td class="text-gray-400">/auth/nodeloc</td><td class="text-gray-500">发起 OAuth 登录</td></tr>
-          <tr><td class="py-1 text-cyan-400">GET</td><td class="text-gray-400">/auth/callback</td><td class="text-gray-500">OAuth 回调</td></tr>
-        </tbody></table>
-      </div>
-
-      <div class="rounded-xl bg-black/20 p-3">
-        <div class="text-white text-[11px] font-medium mb-2">🗄️ 数据库直接操作（AI 运维用）</div>
-        <pre class="text-[11px] text-gray-400 font-mono leading-relaxed">
-# 查节点
-sqlite3 panel.db "SELECT id,name,host,port,is_active FROM nodes"
-
-# 查配置
-sqlite3 panel.db "SELECT key,value FROM settings WHERE key LIKE 'ops_%'"
-
-# 写运营日记
-sqlite3 panel.db "INSERT INTO ops_diary (content,mood,category) VALUES ('内容','😊','ops')"
-
-# 调面板服务（需 dotenv）
-cd /root/vless-panel && node -e "require('dotenv').config(); ..."</pre>
-      </div>
-    </div>
+  <div class="doc-section glass rounded-2xl p-5" id="doc-backup">
+    <h3 class="text-white font-medium mb-3 flex items-center gap-2"><span class="text-lg">💾</span> 备份与恢复</h3>
+    <ul class="space-y-1 text-xs text-gray-300 leading-relaxed">
+      <li>• 支持手动创建数据库备份并查看备份列表。</li>
+      <li>• 支持下载历史备份文件。</li>
+      <li>• 支持从指定备份恢复（恢复前会有确认提示）。</li>
+      <li class="text-amber-300">• 恢复会覆盖当前数据，建议先手动再备份一次并在低峰期操作。</li>
+    </ul>
   </div>
 </div>
 
