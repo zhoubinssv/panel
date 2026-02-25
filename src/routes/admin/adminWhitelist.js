@@ -43,24 +43,4 @@ router.post('/register-whitelist/remove', (req, res) => {
   res.redirect('/admin#whitelist');
 });
 
-// Telegram 登录白名单
-router.post('/tg-whitelist/add', (req, res) => {
-  const telegramId = (req.body.telegram_id || '').trim();
-  const username = (req.body.username || '').trim();
-  if (telegramId) {
-    db.getDb().prepare('INSERT OR IGNORE INTO tg_login_whitelist (telegram_id, username) VALUES (?, ?)').run(telegramId, username || null);
-    db.addAuditLog(req.user.id, 'tg_whitelist_add', `添加 TG 登录白名单: ${username || telegramId}`, req.ip);
-  }
-  res.redirect('/admin#whitelist');
-});
-
-router.post('/tg-whitelist/remove', (req, res) => {
-  const telegramId = (req.body.telegram_id || '').trim();
-  if (telegramId) {
-    db.getDb().prepare('DELETE FROM tg_login_whitelist WHERE telegram_id = ?').run(telegramId);
-    db.addAuditLog(req.user.id, 'tg_whitelist_remove', `移除 TG 登录白名单: ${telegramId}`, req.ip);
-  }
-  res.redirect('/admin#whitelist');
-});
-
 module.exports = router;

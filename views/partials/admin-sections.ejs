@@ -214,30 +214,6 @@
       <% if (whitelist.length === 0) { %><p class="text-gray-600 text-sm">白名单为空</p><% } %>
     </div>
   </div>
-
-  <!-- Telegram 登录白名单 -->
-  <div class="glass rounded-2xl p-5">
-    <div class="mb-4">
-      <h3 class="text-white text-sm font-medium mb-1">🔑 Telegram 登录白名单</h3>
-      <p class="text-gray-500 text-xs">只有白名单中的 Telegram 用户才能通过 TG 登录面板</p>
-    </div>
-    <form method="POST" action="/admin/api/tg-whitelist/add" class="flex gap-2 mb-4">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="text" name="telegram_id" placeholder="Telegram ID（数字）" class="flex-1 bg-black/30 text-white px-4 py-2 rounded-xl border border-white/10 text-sm" required>
-      <input type="text" name="username" placeholder="备注用户名（可选）" class="flex-1 bg-black/30 text-white px-4 py-2 rounded-xl border border-white/10 text-sm">
-      <button class="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-sm transition">添加</button>
-    </form>
-    <div class="flex flex-wrap gap-2">
-      <% tgLoginWhitelist.forEach(function(t) { %>
-        <form method="POST" action="/admin/api/tg-whitelist/remove" class="inline">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <input type="hidden" name="telegram_id" value="<%= t.telegram_id %>">
-          <button class="glass text-gray-300 px-3 py-1 rounded-full text-xs hover:bg-red-500/20 hover:text-red-300 transition"><%= t.username || t.telegram_id %> (TG:<%= t.telegram_id %>) ✕</button>
-        </form>
-      <% }); %>
-      <% if (tgLoginWhitelist.length === 0) { %><p class="text-gray-600 text-sm">暂无 TG 登录白名单</p><% } %>
-    </div>
-  </div>
 </div>
 
 <div class="tab-panel" data-tab="logs">
