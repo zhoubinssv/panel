@@ -139,6 +139,19 @@ function buildXrayConfig(port, clients, outbounds, realityOpts) {
   };
 }
 
+// ========== SFTP 安全写文件 ==========
+
+// 通过 SFTP 写文件，避免 heredoc 注入风险
+async function sftpWriteFile(ssh, remotePath, content) {
+  const sftp = await ssh.requestSFTP();
+  return new Promise((resolve, reject) => {
+    const stream = sftp.createWriteStream(remotePath, { mode: 0o644 });
+    stream.on('error', reject);
+    stream.on('close', resolve);
+    stream.end(Buffer.from(content, 'utf8'));
+  });
+}
+
 // ========== SSH 推送配置 ==========
 
 // 将配置推送到节点并重启 xray（优先通过 Agent，SSH 后备）
@@ -174,7 +187,7 @@ async function pushConfigToNode(node, config) {
     const configJson = JSON.stringify(config, null, 2);
     const configPath = node.xray_config_path || '/usr/local/etc/xray/config.json';
 
-    await ssh.execCommand(`cat > ${configPath} << 'CONFIGEOF'\n${configJson}\nCONFIGEOF`);
+    await sftpWriteFile(ssh, configPath, configJson);
     const result = await ssh.execCommand('systemctl restart xray && sleep 1 && systemctl is-active --quiet xray && echo OK || echo FAIL');
 
     return result.stdout.trim() === 'OK';
@@ -346,7 +359,8 @@ echo "INSTALL_OK"
     const configJson = JSON.stringify(config, null, 2);
     const configPath = '/usr/local/etc/xray/config.json';
 
-    await ssh.execCommand(`mkdir -p /usr/local/etc/xray && cat > ${configPath} << 'CONFIGEOF'\n${configJson}\nCONFIGEOF`);
+    await ssh.execCommand('mkdir -p /usr/local/etc/xray');
+    await sftpWriteFile(ssh, configPath, configJson);
     const startResult = await ssh.execCommand('systemctl enable xray && systemctl restart xray && sleep 2 && systemctl is-active --quiet xray && echo DEPLOY_OK || echo DEPLOY_FAIL');
 
     if (startResult.stdout.includes('DEPLOY_OK')) {
@@ -413,12 +427,14 @@ async function installAgentOnNode(ssh, nodeId, db) {
   const agentCode = fs.readFileSync(agentJsPath, 'utf8');
 
   // 写入 agent.js
-  await ssh.execCommand(`mkdir -p /opt/vless-agent && cat > /opt/vless-agent/agent.js << 'AGENTEOF'\n${agentCode}\nAGENTEOF`);
+  await ssh.execCommand('mkdir -p /opt/vless-agent');
+  await sftpWriteFile(ssh, '/opt/vless-agent/agent.js', agentCode);
   await ssh.execCommand('chmod 755 /opt/vless-agent/agent.js');
 
   // 写入配置
   const configJson = JSON.stringify({ server: serverUrl, token: agentToken, nodeId }, null, 2);
-  await ssh.execCommand(`mkdir -p /etc/vless-agent && cat > /etc/vless-agent/config.json << 'CFGEOF'\n${configJson}\nCFGEOF`);
+  await ssh.execCommand('mkdir -p /etc/vless-agent');
+  await sftpWriteFile(ssh, '/etc/vless-agent/config.json', configJson);
   await ssh.execCommand('chmod 600 /etc/vless-agent/config.json');
 
   // 创建 systemd service 并启动
@@ -441,7 +457,7 @@ SyslogIdentifier=vless-agent
 [Install]
 WantedBy=multi-user.target`;
 
-  await ssh.execCommand(`cat > /etc/systemd/system/vless-agent.service << 'SVCEOF'\n${serviceContent}\nSVCEOF`);
+  await sftpWriteFile(ssh, '/etc/systemd/system/vless-agent.service', serviceContent);
   await ssh.execCommand('systemctl daemon-reload && systemctl enable vless-agent && systemctl restart vless-agent');
 
   console.log(`[Agent安装] 节点#${nodeId} Agent 安装完成`);
