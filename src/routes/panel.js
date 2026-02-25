@@ -318,16 +318,11 @@ router.get('/sub/:token', subLimiter, (req, res) => {
   }
 });
 
-// 在线用户数（从巡检缓存读取，每 5 分钟自动刷新）
+// 在线用户数（从巡检缓存读取）
 router.get('/online-count', requireAuth, (req, res) => {
-  
   const cache = getOnlineCache();
   const summary = cache.summary || { online: 0, nodes: 0 };
-  // 前台显示 2 倍在线人数
-  const display = typeof summary.online === 'number'
-    ? { ...summary, online: summary.online * 2 }
-    : summary;
-  res.json(display);
+  res.json(summary);
 });
 
 // Sprint 6: 用户流量使用明细 API
