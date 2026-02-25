@@ -36,5 +36,8 @@
     "socks-proxy-agent": "^8.0.5",
     "uuid": "^13.0.0",
     "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.19"
   }
 }
