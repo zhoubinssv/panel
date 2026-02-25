@@ -95,7 +95,6 @@
       <div class="flex items-center justify-between mb-3 gap-2">
         <h2 class="text-white font-semibold">🌐 可用节点</h2>
         <div class="flex items-center gap-2">
-          <button onclick="testLatency(this)" class="text-xs px-3 py-1.5 rounded-full glass text-gray-300 hover:text-white transition">⚡ 延迟测试</button>
           <span class="text-gray-600 text-xs"><%= userNodes.length %> 个节点</span>
         </div>
       </div>
@@ -134,7 +133,6 @@
                 <% } %>
               </div>
               <div class="flex items-center gap-1.5">
-                <span class="text-gray-600 text-[10px] latency-badge" id="latency-<%= n.id %>"></span>
                 <% if (n.remark && n.remark.includes('被墙')) { %>
                   <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" title="被墙"></span>
                 <% } else if (n.remark && n.remark.includes('离线')) { %>
@@ -220,35 +218,6 @@
     }
     tickResetCountdown();
     setInterval(tickResetCountdown, 30000);
-
-    // Sprint 6: 延迟测试
-    async function testLatency(btn) {
-      const orig = btn.textContent;
-      btn.textContent = '⏳ 测试中...';
-      btn.disabled = true;
-      try {
-        const r = await fetch('/api/ping-nodes');
-        const d = await r.json();
-        if (d.ok) {
-          d.results.forEach(n => {
-            const el = document.getElementById('latency-' + n.id);
-            if (el) {
-              if (n.latency >= 0) {
-                const color = n.latency < 100 ? 'text-emerald-400' : n.latency < 300 ? 'text-yellow-400' : 'text-red-400';
-                el.className = `text-[10px] latency-badge ${color}`;
-                el.textContent = n.latency + 'ms';
-              } else {
-                el.className = 'text-[10px] latency-badge text-red-400';
-                el.textContent = '超时';
-              }
-            }
-          });
-          toast('✅ 延迟测试完成');
-        }
-      } catch(e) { toast('❌ 测试失败'); }
-      btn.textContent = orig;
-      btn.disabled = false;
-    }
 
     loadTrafficDetail = function(){};
   </script>
