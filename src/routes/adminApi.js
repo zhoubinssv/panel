@@ -8,6 +8,20 @@ const deployService = require('../services/deploy');
 const router = express.Router();
 router.use(requireAuth, requireAdmin);
 
+// ========== 参数校验工具 ==========
+
+// 校验 req.params 中的 id 为正整数，返回数值或 null
+function parseIntId(raw) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// 校验 host 为合法 IP 或域名（禁止命令注入字符）
+const HOST_RE = /^[a-zA-Z0-9._-]{1,253}$/;
+function isValidHost(host) {
+  return typeof host === 'string' && HOST_RE.test(host.trim());
+}
+
 // ========== 白名单 API ==========
 
 router.post('/whitelist/add', (req, res) => {
@@ -59,6 +73,7 @@ router.post('/register-whitelist/remove', (req, res) => {
 router.post('/nodes/deploy', (req, res) => {
   const { host, ssh_port, ssh_user, ssh_password, socks5_host, socks5_port, socks5_user, socks5_pass } = req.body;
   if (!host || !ssh_password) return res.redirect('/admin#nodes');
+  if (!isValidHost(host)) return res.redirect('/admin?msg=invalid_host#nodes');
 
   // 检查 IP 是否已存在
   const existing = db.getAllNodes().find(n => n.host === host.trim());
@@ -88,7 +103,9 @@ router.post('/nodes/deploy', (req, res) => {
 
 
 router.post('/nodes/:id/delete', (req, res) => {
-  const node = db.getNodeById(req.params.id);
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const node = db.getNodeById(id);
   if (!node) return res.redirect('/admin#nodes');
 
   const agentWs = require('../services/agent-ws');
@@ -124,7 +141,10 @@ router.post('/nodes/:id/delete', (req, res) => {
 
 router.post('/nodes/:id/update-host', (req, res) => {
   const { host } = req.body;
-  const node = db.getNodeById(req.params.id);
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  if (!host || !isValidHost(host)) return res.status(400).json({ error: 'host 格式非法' });
+  const node = db.getNodeById(id);
   if (node && host?.trim()) {
     const oldHost = node.host;
     db.updateNode(node.id, { host: host.trim(), ssh_host: host.trim() });
@@ -134,7 +154,9 @@ router.post('/nodes/:id/update-host', (req, res) => {
 });
 
 router.post('/nodes/:id/update-level', async (req, res) => {
-  const node = db.getNodeById(req.params.id);
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const node = db.getNodeById(id);
   const level = parseInt(req.body.level) || 0;
   if (node) {
     db.updateNode(node.id, { min_level: Math.max(0, Math.min(4, level)) });
@@ -148,7 +170,9 @@ router.post('/nodes/:id/update-level', async (req, res) => {
 // ========== 用户 API ==========
 
 router.post('/users/:id/toggle-block', async (req, res) => {
-  const user = db.getUserById(req.params.id);
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const user = db.getUserById(id);
   if (user) {
     db.blockUser(user.id, !user.is_blocked);
     db.addAuditLog(req.user.id, 'user_block', `${user.is_blocked ? '解封' : '封禁'} 用户: ${user.username}`, req.ip);
@@ -160,7 +184,9 @@ router.post('/users/:id/toggle-block', async (req, res) => {
 });
 
 router.post('/users/:id/reset-token', (req, res) => {
-  const user = db.getUserById(req.params.id);
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const user = db.getUserById(id);
   if (user) {
     db.resetSubToken(user.id);
     db.addAuditLog(req.user.id, 'token_reset', `重置订阅: ${user.username}`, req.ip);
@@ -170,7 +196,9 @@ router.post('/users/:id/reset-token', (req, res) => {
 
 // 设置单用户流量限额
 router.post('/users/:id/traffic-limit', (req, res) => {
-  const user = db.getUserById(req.params.id);
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const user = db.getUserById(id);
   if (!user) return res.status(404).json({ error: '用户不存在' });
   const limitGB = parseFloat(req.body.limit) || 0;
   const limitBytes = Math.round(limitGB * 1073741824);
@@ -396,7 +424,9 @@ router.get('/aws/instances', async (req, res) => {
 // 绑定节点到 AWS 实例
 router.post('/nodes/:id/aws-bind', async (req, res) => {
   const { aws_instance_id, aws_type, aws_region, aws_account_id } = req.body;
-  const node = db.getNodeById(req.params.id);
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const node = db.getNodeById(id);
   if (!node) return res.status(404).json({ error: '节点不存在' });
   db.updateNode(node.id, {
     aws_instance_id: aws_instance_id || null,
@@ -419,7 +449,9 @@ router.post('/nodes/:id/aws-bind', async (req, res) => {
 
 // 手动换 IP
 router.post('/nodes/:id/swap-ip', async (req, res) => {
-  const node = db.getNodeById(req.params.id);
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const node = db.getNodeById(id);
   if (!node) return res.status(404).json({ error: '节点不存在' });
   if (!node.aws_instance_id) return res.status(400).json({ error: '节点未绑定 AWS 实例' });
 
@@ -627,8 +659,10 @@ router.post('/aws/launch-and-deploy', async (req, res) => {
 
 // 查看某用户的订阅拉取 IP
 router.get('/sub-access/:userId', (req, res) => {
+  const userId = parseIntId(req.params.userId);
+  if (!userId) return res.status(400).json({ error: '参数错误' });
   const hours = parseInt(req.query.hours) || 24;
-  res.json(db.getSubAccessIPs(parseInt(req.params.userId), hours));
+  res.json(db.getSubAccessIPs(userId, hours));
 });
 
 // ========== Agent WebSocket 管理 ==========
@@ -639,7 +673,8 @@ router.get('/agents', (req, res) => {
 });
 
 router.post('/agents/:nodeId/command', async (req, res) => {
-  const nodeId = parseInt(req.params.nodeId);
+  const nodeId = parseIntId(req.params.nodeId);
+  if (!nodeId) return res.status(400).json({ error: '参数错误' });
   const command = req.body;
   if (!command || !command.type) {
     return res.status(400).json({ error: '缺少 command.type' });
@@ -652,7 +687,9 @@ router.post('/agents/:nodeId/command', async (req, res) => {
 
 // 重启 Xray
 router.post('/nodes/:id/restart-xray', async (req, res) => {
-  const node = db.getNodeById(req.params.id);
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const node = db.getNodeById(id);
   if (!node) return res.status(404).json({ error: '节点不存在' });
   const agentWs = require('../services/agent-ws');
   if (!agentWs.isAgentOnline(node.id)) {
@@ -771,8 +808,10 @@ router.get('/sub-stats', (req, res) => {
 });
 
 router.get('/sub-stats/:userId/detail', (req, res) => {
+  const userId = parseIntId(req.params.userId);
+  if (!userId) return res.status(400).json({ error: '参数错误' });
   const hours = parseInt(req.query.hours) || 24;
-  const data = db.getSubAccessUserDetail(parseInt(req.params.userId), hours);
+  const data = db.getSubAccessUserDetail(userId, hours);
   res.json(data);
 });
 
