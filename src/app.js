@@ -49,6 +49,8 @@ app.use(helmet({
         // 后续在全面迁移为 addEventListener 后再去掉 unsafe-inline
         "'unsafe-inline'",
       ],
+      // 关键：允许 inline 事件处理器（onclick 等），否则会命中 script-src-attr 'none'
+      scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: [
         "'self'",
         // TODO(S14-迁移计划): 将内联 style 迁移到外部 CSS 文件后移除 unsafe-inline
@@ -56,7 +58,8 @@ app.use(helmet({
         'https://fonts.googleapis.com',
       ],
       fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:'],
+      // 允许第三方头像/外链图片（如 OAuth 用户头像）
+      imgSrc: ["'self'", 'data:', 'https:', 'http:'],
       connectSrc: ["'self'", 'wss:', 'ws:'],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
