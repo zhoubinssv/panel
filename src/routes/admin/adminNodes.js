@@ -3,7 +3,16 @@ const db = require('../../services/database');
 const deployService = require('../../services/deploy');
 const agentWs = require('../../services/agent-ws');
 const { emitSyncAll, emitSyncNode } = require('../../services/configEvents');
-const { parseIntId, isValidHost } = require('../adminApi');
+
+function parseIntId(raw) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+const HOST_RE = /^[a-zA-Z0-9._-]{1,253}$/;
+function isValidHost(host) {
+  return typeof host === 'string' && HOST_RE.test(host.trim());
+}
 
 const router = express.Router();
 
