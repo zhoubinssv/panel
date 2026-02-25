@@ -398,9 +398,11 @@ echo "INSTALL_OK"
  * 通过已有 SSH 连接在节点上安装 Agent
  */
 async function installAgentOnNode(ssh, nodeId, db) {
-  const agentToken = db.getSetting('agent_token');
+  // 获取节点独立 token
+  const node = db.getNodeById(nodeId);
+  const agentToken = node?.agent_token;
   if (!agentToken) {
-    console.log('[Agent安装] 未配置 agent_token，跳过');
+    console.log('[Agent安装] 节点无 agent_token，跳过');
     return;
   }
   const serverUrl = process.env.AGENT_WS_URL || 'wss://vip.vip.sd/ws/agent';

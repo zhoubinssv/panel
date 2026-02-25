@@ -142,16 +142,18 @@ function handleAuth(ws, msg) {
     return ws.close(4004, '缺少 token 或 nodeId');
   }
 
-  const agentToken = db.getSetting('agent_token');
-  if (!agentToken || token !== agentToken) {
-    console.log(`[Agent-WS] 节点 #${nodeId} 认证失败：token 不匹配`);
-    return ws.close(4005, '认证失败');
-  }
-
   // 验证节点存在
   const node = db.getNodeById(nodeId);
   if (!node) {
     return ws.close(4006, '节点不存在');
+  }
+
+  // 优先检查节点独立 token，回退到全局 token（兼容旧 agent）
+  const nodeToken = node.agent_token;
+  const globalToken = db.getSetting('agent_token');
+  if (token !== nodeToken && token !== globalToken) {
+    console.log(`[Agent-WS] 节点 #${nodeId} 认证失败：token 不匹配`);
+    return ws.close(4005, '认证失败');
   }
 
   // 踢掉旧连接

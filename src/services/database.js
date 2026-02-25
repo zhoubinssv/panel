@@ -251,6 +251,16 @@ function initTables() {
   if (!cols.includes('agent_last_report')) {
     db.exec("ALTER TABLE nodes ADD COLUMN agent_last_report TEXT");
   }
+  if (!cols.includes('agent_token')) {
+    db.exec("ALTER TABLE nodes ADD COLUMN agent_token TEXT");
+    // 为现有节点生成独立 token
+    const { v4: migrateUuid } = require('uuid');
+    const existingNodes = db.prepare('SELECT id FROM nodes').all();
+    const updateStmt = db.prepare('UPDATE nodes SET agent_token = ? WHERE id = ?');
+    for (const n of existingNodes) {
+      updateStmt.run(migrateUuid(), n.id);
+    }
+  }
 
   // 迁移：用户表补充 is_frozen 字段
   const userCols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
@@ -519,8 +529,8 @@ function getNodeById(id) {
 
 function addNode(node) {
   const stmt = getDb().prepare(`
-    INSERT INTO nodes (name, host, port, uuid, protocol, network, security, ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_path, xray_config_path, socks5_host, socks5_port, socks5_user, socks5_pass, is_active, region, remark, is_manual, fail_count)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO nodes (name, host, port, uuid, protocol, network, security, ssh_host, ssh_port, ssh_user, ssh_password, ssh_key_path, xray_config_path, socks5_host, socks5_port, socks5_user, socks5_pass, is_active, region, remark, is_manual, fail_count, agent_token)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   return stmt.run(
     node.name, node.host, node.port, node.uuid,
@@ -533,12 +543,13 @@ function addNode(node) {
     node.is_active !== undefined ? node.is_active : 1,
     node.region, node.remark,
     node.is_manual ? 1 : 0,
-    node.fail_count || 0
+    node.fail_count || 0,
+    node.agent_token || uuidv4()
   );
 }
 
 function updateNode(id, fields) {
-  const allowed = ['name','host','port','uuid','ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_path','region','remark','is_active','last_check','last_rotated','socks5_host','socks5_port','socks5_user','socks5_pass','min_level','reality_private_key','reality_public_key','reality_short_id','sni','aws_instance_id','aws_type','aws_region','aws_account_id','is_manual','fail_count','agent_last_report'];
+  const allowed = ['name','host','port','uuid','ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_path','region','remark','is_active','last_check','last_rotated','socks5_host','socks5_port','socks5_user','socks5_pass','min_level','reality_private_key','reality_public_key','reality_short_id','sni','aws_instance_id','aws_type','aws_region','aws_account_id','is_manual','fail_count','agent_last_report','agent_token'];
   const safe = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)));
   if (Object.keys(safe).length === 0) return;
   const sets = Object.keys(safe).map(k => `${k} = ?`).join(', ');

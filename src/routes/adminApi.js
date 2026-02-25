@@ -715,10 +715,17 @@ router.post('/agents/update-all', async (req, res) => {
 });
 
 router.post('/agent-token/regenerate', (req, res) => {
-  const newToken = uuidv4();
-  db.setSetting('agent_token', newToken);
-  db.addAuditLog(req.user.id, 'agent_token_regen', '重新生成 Agent Token', req.ip);
-  res.json({ token: newToken });
+  // 重新生成所有节点的独立 token
+  const nodes = db.getAllNodes();
+  for (const node of nodes) {
+    const newToken = uuidv4();
+    db.updateNode(node.id, { agent_token: newToken });
+  }
+  // 同时更新全局 token（兼容旧 agent）
+  const globalToken = uuidv4();
+  db.setSetting('agent_token', globalToken);
+  db.addAuditLog(req.user.id, 'agent_token_regen', `重新生成所有节点 Agent Token (${nodes.length} 个)`, req.ip);
+  res.json({ token: globalToken, nodesUpdated: nodes.length });
 });
 
 // ========== 日志 API ==========
