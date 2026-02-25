@@ -8,6 +8,9 @@ const QRCode = require('qrcode');
 const { notify } = require('../services/notify');
 const { getOnlineCache } = require('../services/health');
 
+// 模块级缓存（替代 global 变量）
+const _abuseCache = new Map();
+
 
 
 const router = express.Router();
@@ -151,13 +154,13 @@ router.get('/sub/:token', subLimiter, (req, res) => {
   // 滥用检测：24h 内 ≥20 个不同 IP 触发通知（同一用户1小时内只通知一次）
   const ips = db.getSubAccessIPs(user.id, 24);
   if (ips.length >= 20) {
-    if (!global._abuseCache) global._abuseCache = new Map();
+    
     const now = Date.now();
-    const last = global._abuseCache.get(user.id) || 0;
+    const last = _abuseCache.get(user.id) || 0;
     if (now - last > 3600000) {
-      global._abuseCache.set(user.id, now);
+      _abuseCache.set(user.id, now);
       // 清理过期条目
-      for (const [k, v] of global._abuseCache) { if (now - v > 3600000) global._abuseCache.delete(k); }
+      for (const [k, v] of _abuseCache) { if (now - v > 3600000) _abuseCache.delete(k); }
       
       notify.abuse(user.username, ips.length);
     }

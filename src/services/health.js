@@ -2,6 +2,9 @@ const net = require('net');
 const db = require('./database');
 const { notify, send: notifySend } = require('./notify');
 
+// 模块级缓存（替代 global 变量）
+const _trafficNotifiedCache = new Set();
+
 // TCP 端口探测
 function checkPort(host, port, timeout = 5000) {
   return new Promise((resolve) => {
@@ -49,8 +52,8 @@ function checkTrafficExceed() {
     `).all(today, 10 * 1073741824);
     for (const u of todayTraffic) {
       const cacheKey = `traffic_notified_${u.user_id}_${today}`;
-      if (!global[cacheKey]) {
-        global[cacheKey] = true;
+      if (!_trafficNotifiedCache.has(cacheKey)) {
+        _trafficNotifiedCache.add(cacheKey);
         const gb = ((u.total_up + u.total_down) / 1073741824).toFixed(2);
         db.addAuditLog(null, 'traffic_exceed', `用户 ${u.username} 今日流量超标: ${gb} GB`, 'system');
         notify.trafficExceed(u.username, u.total_up + u.total_down);
