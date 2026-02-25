@@ -25,6 +25,7 @@ const trafficService = require('./services/traffic');
 const dbModule = require('./services/database');
 const { getDb } = dbModule;
 const deployService = require('./services/deploy');
+const { configEvents } = require('./services/configEvents');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,6 +68,14 @@ const { csrfProtection, csrfLocals } = require('./middleware/csrf');
 
 // CSRF 防护
 app.use(csrfLocals);
+
+// 配置同步事件监听
+configEvents.on('sync-all', () => {
+  deployService.syncAllNodesConfig(dbModule).catch(err => console.error('[配置同步]', err));
+});
+configEvents.on('sync-node', (node) => {
+  deployService.syncNodeConfig(node, dbModule).catch(err => console.error('[配置同步]', err));
+});
 
 // 路由
 app.use('/auth/nodeloc', authLimiter);
@@ -153,8 +162,7 @@ cron.schedule('0 4 * * *', async () => {
       logger.info({ count: frozen.length, users: frozen.map(u => u.username) }, '自动冻结不活跃用户');
       db.addAuditLog(null, 'auto_freeze', `自动冻结 ${frozen.length} 个用户: ${frozen.map(u => u.username).join(', ')}`, 'system');
       // 同步节点配置，移除冻结用户的 UUID
-      const { syncAllNodesConfig } = deployService;
-      await syncAllNodesConfig(db);
+      await deployService.syncAllNodesConfig(db);
     }
   } catch (err) { logger.error({ err }, '清理/冻结失败'); }
 }, { timezone: 'Asia/Shanghai' });

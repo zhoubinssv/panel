@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../../services/database');
 const deployService = require('../../services/deploy');
 const agentWs = require('../../services/agent-ws');
+const { emitSyncAll, emitSyncNode } = require('../../services/configEvents');
 const { parseIntId, isValidHost } = require('../adminApi');
 
 const router = express.Router();
@@ -86,7 +87,7 @@ router.post('/nodes/:id/update-level', async (req, res) => {
   if (node) {
     db.updateNode(node.id, { min_level: Math.max(0, Math.min(4, level)) });
     db.addAuditLog(req.user.id, 'node_update_level', `${node.name} 等级: Lv.${level}`, req.ip);
-    deployService.syncNodeConfig(node, db).catch(() => {});
+    emitSyncNode(node);
   }
   res.json({ ok: true });
 });

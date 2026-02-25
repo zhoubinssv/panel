@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const passport = require('passport');
 const db = require('../services/database');
-const deployService = require('../services/deploy');
+const { emitSyncAll } = require('../services/configEvents');
 
 const router = express.Router();
 
@@ -38,7 +38,7 @@ router.get('/callback', (req, res, next) => {
       db.addAuditLog(user.id, 'login', `用户 ${user.username} 登录`, loginIP);
       // 如果用户刚被解冻，异步同步节点配置
       if (user._wasFrozen) {
-        deployService.syncAllNodesConfig(db).catch(() => {});
+        emitSyncAll();
       }
       res.redirect('/');
     });

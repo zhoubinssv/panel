@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../../services/database');
-const deployService = require('../../services/deploy');
+const { emitSyncAll } = require('../../services/configEvents');
 
 const router = express.Router();
 
@@ -10,7 +10,7 @@ router.post('/whitelist/add', (req, res) => {
   if (user) {
     db.addToWhitelist(user.nodeloc_id);
     db.addAuditLog(req.user.id, 'whitelist_add', `添加白名单: ${user.username}`, req.ip);
-    deployService.syncAllNodesConfig(db).catch(() => {});
+    emitSyncAll();
   }
   res.redirect('/admin#whitelist');
 });
@@ -20,7 +20,7 @@ router.post('/whitelist/remove', (req, res) => {
   if (nodeloc_id) {
     db.removeFromWhitelist(parseInt(nodeloc_id));
     db.addAuditLog(req.user.id, 'whitelist_remove', `移除白名单: ID#${nodeloc_id}`, req.ip);
-    deployService.syncAllNodesConfig(db).catch(() => {});
+    emitSyncAll();
   }
   res.redirect('/admin#whitelist');
 });

@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../../services/database');
-const deployService = require('../../services/deploy');
+const { emitSyncAll } = require('../../services/configEvents');
 const { parseIntId } = require('../adminApi');
 
 const router = express.Router();
@@ -12,7 +12,7 @@ router.post('/users/:id/toggle-block', async (req, res) => {
   if (user) {
     db.blockUser(user.id, !user.is_blocked);
     db.addAuditLog(req.user.id, 'user_block', `${user.is_blocked ? '解封' : '封禁'} 用户: ${user.username}`, req.ip);
-    deployService.syncAllNodesConfig(db).catch(() => {});
+    emitSyncAll();
   }
   res.redirect('/admin#users');
 });

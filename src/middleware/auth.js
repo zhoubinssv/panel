@@ -1,7 +1,7 @@
 const passport = require('passport');
 const OAuth2Strategy = require('passport-oauth2');
 const db = require('../services/database');
-const deployService = require('../services/deploy');
+const { emitSyncAll } = require('../services/configEvents');
 
 function setupAuth(app) {
   passport.use('nodeloc', new OAuth2Strategy({
@@ -39,7 +39,7 @@ function setupAuth(app) {
       }
 
       // 异步同步节点配置（新用户需要把 UUID 推送到节点）
-      deployService.syncAllNodesConfig(db).catch(err => console.error('[配置同步]', err));
+      emitSyncAll();
 
       return done(null, user);
     } catch (err) {
