@@ -14,7 +14,7 @@ router.get('/traffic', (req, res) => {
 
 router.get('/traffic/nodes', (req, res) => {
   const range = req.query.range || 'today';
-  res.json(db.getNodesTrafficByRange(range));
+  res.json({ rows: db.getNodesTrafficByRange(range) });
 });
 
 module.exports = router;
