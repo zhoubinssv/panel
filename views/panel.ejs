@@ -89,14 +89,16 @@
     </div>
 
     <!-- 🍑 蜜桃酱 AI 运维概览 -->
-    <div class="glass rounded-2xl p-4" id="peach-section">
-      <div class="flex items-center gap-2 mb-3">
-        <span class="text-lg">🍑</span>
-        <span class="text-white text-sm font-medium">蜜桃酱 AI 守护</span>
-        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400" style="animation:pulse 2s infinite"></span>
-        <span class="text-emerald-400 text-[10px]">在线</span>
+    <div class="glass rounded-2xl p-3" id="peach-section">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span>🍑</span>
+          <span class="text-white text-sm font-medium">蜜桃酱 AI 守护</span>
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-400" style="animation:pulse 2s infinite"></span>
+          <span class="text-emerald-400 text-[10px]">在线</span>
+        </div>
       </div>
-      <div class="grid grid-cols-4 gap-2 text-center">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-top:8px">
         <div><p class="text-white text-sm font-bold" id="peach-days">-</p><p class="text-gray-600 text-[10px]">运行天数</p></div>
         <div><p class="text-cyan-400 text-sm font-bold" id="peach-patrols">-</p><p class="text-gray-600 text-[10px]">累计巡检</p></div>
         <div><p class="text-amber-400 text-sm font-bold" id="peach-fixes">-</p><p class="text-gray-600 text-[10px]">自动修复</p></div>
