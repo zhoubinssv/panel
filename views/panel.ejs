@@ -125,30 +125,30 @@
           </div>
         <% } else { _groups[gName].forEach(function(n) { %>
           <div class="glass rounded-2xl p-4 node-card" data-search="<%= (n.name || '') + ' ' + (n.region || '') + ' ' + (n.tags || '') %>">
-            <div class="flex items-center justify-between mb-2">
-              <div class="flex items-center gap-1.5 min-w-0">
-                <h3 class="text-white font-medium text-sm truncate"><%= n.name %></h3>
+            <div class="flex items-center justify-between mb-2.5">
+              <div class="flex items-center gap-2 min-w-0">
+                <% if (n.remark && n.remark.includes('被墙')) { %>
+                  <span class="shrink-0 inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" title="被墙"></span>
+                <% } else if (n.remark && n.remark.includes('离线')) { %>
+                  <span class="shrink-0 inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" title="离线"></span>
+                <% } else if (n.is_active) { %>
+                  <span class="shrink-0 inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" title="在线"></span>
+                <% } else { %>
+                  <span class="shrink-0 inline-block w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.6)]" title="检测中"></span>
+                <% } %>
+                <h3 class="text-white font-semibold text-sm truncate"><%= n.name %></h3>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
                 <% if (nodeAiTags[n.id] && nodeAiTags[n.id].includes('ai_swap')) { %>
                   <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 whitespace-nowrap">🔄 AI换IP</span>
                 <% } %>
               </div>
-              <div class="flex items-center gap-1.5">
-                <% if (n.remark && n.remark.includes('被墙')) { %>
-                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" title="被墙"></span>
-                <% } else if (n.remark && n.remark.includes('离线')) { %>
-                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" title="离线"></span>
-                <% } else if (n.is_active) { %>
-                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" title="在线"></span>
-                <% } else { %>
-                  <span class="inline-block w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.6)]" title="检测中"></span>
-                <% } %>
-              </div>
             </div>
-            <% if (n.region) { %><p class="text-gray-500 text-xs mb-3"><%= n.region %><% if (n.tags) { %> · <span class="text-gray-600"><%= n.tags %></span><% } %></p><% } %>
+            <% if (n.region) { %><p class="text-gray-400 text-xs mb-3"><%= n.region %><% if (n.tags) { %> · <span class="text-gray-500 text-[11px]"><%= n.tags %></span><% } %></p><% } %>
             <div class="bg-black/30 rounded-lg p-2.5 mb-2.5 overflow-hidden">
               <code class="text-rose-300 text-[11px] break-all select-all font-mono vless-link leading-relaxed block max-h-20 overflow-y-auto" id="link-<%= n.id %>"><%= n.link %></code>
             </div>
-            <button onclick="copyLink(<%= n.id %>)" class="w-full bg-rose-600/80 hover:bg-rose-500 text-white text-xs py-2 rounded-lg transition">复制链接</button>
+            <button onclick="copyLink(<%= n.id %>)" class="w-full bg-rose-600/80 hover:bg-rose-500 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none text-white text-xs py-2.5 rounded-lg transition font-medium">复制链接</button>
           </div>
         <% }); } %>
       </div>
@@ -223,13 +223,13 @@
   </script>
 
   <!-- 🍑 蜜桃酱浮动气泡 -->
-  <div id="peach-bubble" onclick="togglePeachPanel()" style="position:fixed;bottom:20px;right:20px;z-index:999;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#f97316);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(244,63,94,0.4);font-size:24px;transition:all .3s">
+  <div id="peach-bubble" onclick="togglePeachPanel()" style="position:fixed;bottom:max(20px, env(safe-area-inset-bottom, 0px) + 12px);right:max(16px, env(safe-area-inset-right, 0px) + 8px);z-index:999;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#f43f5e,#f97316);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(244,63,94,0.4);font-size:24px;transition:all .3s" role="button" aria-label="蜜桃酱状态面板" tabindex="0">
     🍑
-    <span style="position:absolute;top:2px;right:2px;width:10px;height:10px;border-radius:50%;background:#34d399;border:2px solid #0f0b1e;animation:pulse 2s infinite"></span>
+    <span style="position:absolute;top:2px;right:2px;width:10px;height:10px;border-radius:50%;background:#34d399;border:2px solid #0f0b1e;animation:pulse 2s infinite" aria-hidden="true"></span>
   </div>
 
   <!-- 蜜桃酱展开面板 -->
-  <div id="peach-panel" style="display:none;position:fixed;bottom:80px;right:20px;z-index:998;width:300px;background:rgba(15,11,30,0.95);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+  <div id="peach-panel" style="display:none;position:fixed;bottom:max(80px, env(safe-area-inset-bottom, 0px) + 72px);right:max(16px, env(safe-area-inset-right, 0px) + 8px);z-index:998;width:min(300px, calc(100vw - 32px));background:rgba(15,11,30,0.95);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,0.6);max-height:calc(100vh - 120px);overflow-y:auto">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <span style="font-size:20px">🍑</span>
       <span style="color:#fff;font-size:14px;font-weight:600">蜜桃酱守护中</span>
@@ -294,6 +294,10 @@
     const p = document.getElementById('peach-panel');
     p.style.display = p.style.display === 'none' ? 'block' : 'none';
   }
+  // 键盘触发气泡
+  document.getElementById('peach-bubble').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePeachPanel(); }
+  });
   document.addEventListener('click', function(e) {
     if (!e.target.closest('#peach-bubble') && !e.target.closest('#peach-panel')) {
       document.getElementById('peach-panel').style.display = 'none';

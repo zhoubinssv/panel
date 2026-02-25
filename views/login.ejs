@@ -19,23 +19,29 @@
     .glow-btn{background:linear-gradient(135deg,#f43f5e,#e11d48);box-shadow:0 4px 24px rgba(244,63,94,0.35);transition:all .3s}
     .glow-btn:hover{box-shadow:0 8px 36px rgba(244,63,94,0.5);transform:translateY(-2px)}
     .glow-btn:active{transform:translateY(0)}
+    .glow-btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(244,63,94,0.5),0 8px 36px rgba(244,63,94,0.5);transform:translateY(-2px)}
   </style>
 </head>
 <body class="flex items-center justify-center px-4">
-  <div class="glass rounded-3xl p-10 max-w-sm w-full text-center">
-    <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center text-3xl shadow-lg shadow-rose-500/25">🍑</div>
+  <main class="glass rounded-3xl p-10 max-w-sm w-full text-center" role="main" aria-label="登录">
+    <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center text-3xl shadow-lg shadow-rose-500/25" aria-hidden="true">🍑</div>
     <h1 class="text-2xl font-bold text-white mb-1">小姨子的诱惑</h1>
     <p class="text-gray-500 text-sm mb-8">使用 NodeLoc 账号登录以继续</p>
     <% if (error) { %>
-      <div class="glass rounded-xl p-3 mb-6 border-red-500/30 bg-red-500/10">
+      <div class="glass rounded-xl p-3 mb-6 border-red-500/30 bg-red-500/10" role="alert">
         <p class="text-red-300 text-sm"><%= error %></p>
       </div>
     <% } %>
-    <a href="/auth/nodeloc" class="glow-btn inline-flex items-center justify-center w-full text-white font-semibold py-3.5 px-6 rounded-xl text-sm">
-      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+    <a href="/auth/nodeloc" id="login-btn" class="glow-btn inline-flex items-center justify-center w-full text-white font-semibold py-3.5 px-6 rounded-xl text-sm" role="button" aria-label="使用 NodeLoc 账号登录">
+      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
       NodeLoc 登录
     </a>
     <p class="text-gray-600 text-xs mt-6">仅限授权用户使用</p>
-  </div>
+  </main>
+  <script nonce="<%= nonce %>">
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { var btn = document.getElementById('login-btn'); if (btn) btn.click(); }
+    });
+  </script>
 </body>
 </html>
