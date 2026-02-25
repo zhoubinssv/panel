@@ -50,9 +50,9 @@
     </div>
   </div>
 
-  <!-- 今日运维事件时间线 -->
+  <!-- 运维事件 -->
   <div class="glass rounded-2xl p-5">
-    <h3 class="text-white text-sm font-medium mb-3">🕐 运维事件时间线</h3>
+    <h3 class="text-white text-sm font-medium mb-3">🕐 运维事件</h3>
     <div id="ops-timeline" class="space-y-2 max-h-[400px] overflow-y-auto">
       <p class="text-gray-600 text-xs text-center py-4">加载中...</p>
     </div>
@@ -115,14 +115,6 @@
 
     <button onclick="saveOpsConfig()" class="mt-4 w-full bg-rose-600 hover:bg-rose-500 text-white py-2 rounded-xl text-sm transition">保存配置</button>
   </div>
-
-  <!-- 诊断记录 -->
-  <div class="glass rounded-2xl p-5">
-    <h3 class="text-white text-sm font-medium mb-3">🩺 诊断记录</h3>
-    <div id="ops-diagnoses" class="space-y-2 max-h-[300px] overflow-y-auto">
-      <p class="text-gray-600 text-xs text-center py-4">加载中...</p>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -153,20 +145,26 @@
     patrol: { icon: '🐱', color: 'text-purple-400' },
     instance_create: { icon: '☁️', color: 'text-blue-400' },
     instance_terminate: { icon: '💀', color: 'text-red-400' },
-    xray_restart: { icon: '🔧', color: 'text-yellow-400' },
+    diagnosis_pending: { icon: '🩺', color: 'text-yellow-400' },
+    diagnosis_resolved: { icon: '💊', color: 'text-emerald-400' },
+    diagnosis_failed: { icon: '❌', color: 'text-red-400' },
+    auto_swap_ip_start: { icon: '🔄', color: 'text-orange-400' },
+    auto_swap_ip_ok: { icon: '✅', color: 'text-emerald-400' },
+    auto_swap_ip_fail: { icon: '❌', color: 'text-red-400' },
+    node_xray_down: { icon: '🔴', color: 'text-red-400' },
+    traffic_exceed: { icon: '⚠️', color: 'text-yellow-400' },
   };
 
   const STATUS_COLORS = { pending: 'text-yellow-400 border-yellow-500/20', resolved: 'text-emerald-400 border-emerald-500/20', failed: 'text-red-400 border-red-500/20' };
 
   window.loadOpsDashboard = async function() {
     try {
-      const [dashRes, eventsRes, diagRes, cfgRes] = await Promise.all([
+      const [dashRes, eventsRes, cfgRes] = await Promise.all([
         fetch('/admin/api/ops-dashboard'), fetch('/admin/api/ops-events'),
-        fetch('/admin/api/ops-diagnoses'), fetch('/admin/api/ops-config')
+        fetch('/admin/api/ops-config')
       ]);
       const dash = await dashRes.json();
       const events = await eventsRes.json();
-      const diags = await diagRes.json();
       const cfg = await cfgRes.json();
 
       // 健康卡片
@@ -199,26 +197,6 @@
               </div>
               <p class="text-gray-500 text-[11px] truncate mt-0.5">${e.detail || ''}</p>
             </div>
-          </div>`;
-        }).join('');
-      }
-
-      // 诊断记录
-      const dc = document.getElementById('ops-diagnoses');
-      if (!diags.length) {
-        dc.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">暂无诊断记录</p>';
-      } else {
-        dc.innerHTML = diags.map(d => {
-          const sc = STATUS_COLORS[d.status] || STATUS_COLORS.pending;
-          const time = (d.created_at || '').replace('T', ' ').slice(0, 16);
-          return `<div class="p-3 rounded-xl bg-black/20 border ${sc.split(' ')[1] || 'border-white/5'}">
-            <div class="flex items-center justify-between">
-              <span class="text-white text-xs font-medium">${d.node_name || '节点#' + d.node_id}</span>
-              <span class="${sc.split(' ')[0]} text-[10px] font-medium uppercase">${d.status}</span>
-            </div>
-            <p class="text-gray-500 text-[11px] mt-1">${d.diag_info || ''}</p>
-            ${d.ai_analysis ? `<p class="text-gray-400 text-[11px] mt-1">💡 ${d.ai_analysis}</p>` : ''}
-            <span class="text-gray-600 text-[10px]">${time}</span>
           </div>`;
         }).join('');
       }

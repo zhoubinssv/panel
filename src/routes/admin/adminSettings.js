@@ -136,15 +136,35 @@ router.get('/ops-dashboard', (req, res) => {
 
 router.get('/ops-events', (req, res) => {
   const d = db.getDb();
-  const limit = parseInt(req.query.limit) || 20;
-  const events = d.prepare(`
-    SELECT id, action, detail, created_at FROM audit_log
-    WHERE action IN ('node_blocked','auto_swap_ip','swap_ip','ip_rotated','node_recovered',
-      'deploy','health_check','auto_repair','ops_config','node_create','node_delete',
-      'patrol','instance_create','instance_terminate','xray_restart')
+  const limit = parseInt(req.query.limit) || 30;
+  // 合并 audit_log 运维事件 + ops_diagnosis 诊断记录
+  const auditEvents = d.prepare(`
+    SELECT id, action, detail, created_at, 'audit' as source FROM audit_log
+    WHERE action IN ('node_blocked','auto_swap_ip','auto_swap_ip_start','auto_swap_ip_ok','auto_swap_ip_fail',
+      'swap_ip','ip_rotated','node_recovered','deploy','health_check','auto_repair','ops_config',
+      'node_create','node_delete','patrol','instance_create','instance_terminate','xray_restart',
+      'node_xray_down','node_auto_remove_manual','traffic_exceed')
     ORDER BY created_at DESC LIMIT ?
   `).all(limit);
-  res.json(events);
+  const diagEvents = d.prepare(`
+    SELECT d.id, d.status, d.diag_info, d.ai_analysis, d.created_at, d.resolved_at,
+           n.name as node_name, 'diagnosis' as source
+    FROM ops_diagnosis d LEFT JOIN nodes n ON d.node_id = n.id
+    ORDER BY d.created_at DESC LIMIT ?
+  `).all(limit);
+  // 合并并按时间排序
+  const merged = [
+    ...auditEvents.map(e => ({ ...e, type: 'event' })),
+    ...diagEvents.map(e => ({
+      id: 'diag-' + e.id,
+      action: 'diagnosis_' + e.status,
+      detail: `${e.node_name || '未知节点'}: ${e.diag_info || ''}${e.ai_analysis ? ' → ' + e.ai_analysis : ''}`,
+      created_at: e.created_at,
+      source: 'diagnosis',
+      type: 'diagnosis'
+    }))
+  ].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, limit);
+  res.json(merged);
 });
 
 router.get('/ops-diagnoses', (req, res) => {
