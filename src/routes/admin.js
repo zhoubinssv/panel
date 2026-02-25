@@ -31,6 +31,7 @@ router.get('/', (req, res) => {
     maxUsers: parseInt(db.getSetting('max_users')) || 0,
     userCount: db.getUserCount(),
     registerWhitelist: db.getRegisterWhitelist(),
+    tgLoginWhitelist: db.getDb().prepare('SELECT * FROM tg_login_whitelist ORDER BY added_at DESC').all(),
     defaultTrafficLimit: parseInt(db.getSetting('default_traffic_limit')) || 0
   });
 });

@@ -268,6 +268,23 @@ function initTables() {
     }
   }
 
+  // Sprint 11: users 表加 telegram_id 字段
+  const userColsPre = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  if (!userColsPre.includes('telegram_id')) {
+    db.exec("ALTER TABLE users ADD COLUMN telegram_id INTEGER");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL");
+  }
+
+  // Sprint 11: Telegram 登录白名单表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tg_login_whitelist (
+      id INTEGER PRIMARY KEY,
+      telegram_id TEXT UNIQUE NOT NULL,
+      username TEXT,
+      added_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   const userCols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
   if (!userCols.includes('is_frozen')) {
     db.exec("ALTER TABLE users ADD COLUMN is_frozen INTEGER DEFAULT 0");
