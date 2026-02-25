@@ -9,7 +9,8 @@
     "pm2:stop": "pm2 stop vless-panel",
     "pm2:restart": "pm2 restart vless-panel",
     "pm2:logs": "pm2 logs vless-panel",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:css": "npx tailwindcss -o public/css/tailwind.min.css --minify"
   },
   "keywords": [],
   "author": "",

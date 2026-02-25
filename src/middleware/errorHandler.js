@@ -14,7 +14,7 @@ function notFoundHandler(req, res) {
   res.status(404).send(`
     <!DOCTYPE html><html><head><meta charset="UTF-8"><title>404 · 小姨子的诱惑</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍑</text></svg>">
-    <script src="https://cdn.tailwindcss.com"></script></head>
+    <link rel="stylesheet" href="/css/tailwind.min.css"></head>
     <body class="bg-[#0c0a0f] min-h-screen flex items-center justify-center">
       <div class="text-center">
         <p class="text-5xl mb-3">🍑</p>
@@ -44,7 +44,7 @@ function errorHandler(err, req, res, _next) {
   res.status(status).send(`
     <!DOCTYPE html><html><head><meta charset="UTF-8"><title>${status} · 小姨子的诱惑</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍑</text></svg>">
-    <script src="https://cdn.tailwindcss.com"></script></head>
+    <link rel="stylesheet" href="/css/tailwind.min.css"></head>
     <body class="bg-[#0c0a0f] min-h-screen flex items-center justify-center">
       <div class="text-center">
         <p class="text-5xl mb-3">🍑</p>
