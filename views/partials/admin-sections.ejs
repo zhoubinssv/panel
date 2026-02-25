@@ -2,8 +2,8 @@
 <div class="tab-panel" data-tab="users">
   <!-- 用户总数 + 搜索 -->
   <div class="flex items-center justify-between mb-3">
-    <span class="text-gray-500 text-xs">共 <span class="text-white font-medium"><%= users.length %></span> 个用户</span>
-    <input type="text" id="user-search" placeholder="搜索用户名..." oninput="filterUsers()" class="bg-black/30 text-white px-3 py-1.5 rounded-xl border border-white/10 text-xs w-40">
+    <span class="text-gray-500 text-xs">共 <span class="text-white font-medium" id="users-total-count">-</span> 个用户</span>
+    <input type="text" id="user-search" placeholder="搜索用户名..." class="bg-black/30 text-white px-3 py-1.5 rounded-xl border border-white/10 text-xs w-40">
   </div>
 
   <div class="glass rounded-2xl overflow-hidden">
@@ -13,34 +13,7 @@
           <tr><th class="py-3 px-4">用户</th><th class="py-3 px-4">ID</th><th class="py-3 px-4">等级</th><th class="py-3 px-4">已用/限额</th><th class="py-3 px-4">最后登录</th><th class="py-3 px-4">状态</th><th class="py-3 px-4">操作</th></tr>
         </thead>
         <tbody class="text-gray-300" id="users-tbody">
-          <% users.forEach(function(u, idx) { %>
-          <tr class="border-b border-white/5 hover:bg-white/[0.02] user-row" data-username="<%= u.username.toLowerCase() %>" data-idx="<%= idx %>">
-            <td class="py-3 px-4 flex items-center gap-2">
-              <img src="<%= u.avatar_url || '' %>" class="w-6 h-6 rounded-full ring-1 ring-white/10 bg-gray-800" onerror="this.style.display='none'">
-              <span class="text-white text-sm"><%= u.username %></span>
-              <% if (u.is_admin) { %><span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">管理</span><% } %>
-            </td>
-            <td class="py-3 px-4 text-xs text-gray-500"><%= u.nodeloc_id %></td>
-            <td class="py-3 px-4 text-xs"><%= u.trust_level %></td>
-            <td class="py-3 px-4 text-xs text-gray-400">
-              <%= formatBytes(u.total_traffic || 0) %> / <span class="cursor-pointer text-cyan-400 hover:underline" onclick="setTrafficLimit(<%= u.id %>, '<%= u.username %>', <%= u.traffic_limit || 0 %>)"><%= u.traffic_limit ? formatBytes(u.traffic_limit) : '∞' %></span>
-            </td>
-            <td class="py-3 px-4 text-xs text-gray-500"><%= u.last_login || '-' %></td>
-            <td class="py-3 px-4">
-              <span class="text-[10px] px-2 py-0.5 rounded-full <%= u.is_blocked ? 'bg-red-500/20 text-red-300' : u.is_frozen ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300' %>"><%= u.is_blocked ? '已封禁' : u.is_frozen ? '已冻结' : '正常' %></span>
-            </td>
-            <td class="py-3 px-4 space-x-2">
-              <form method="POST" action="/admin/api/users/<%= u.id %>/toggle-block" class="inline">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button class="text-xs <%= u.is_blocked ? 'text-emerald-400' : 'text-red-400' %> hover:underline"><%= u.is_blocked ? '解封' : '封禁' %></button>
-              </form>
-              <form method="POST" action="/admin/api/users/<%= u.id %>/reset-token" class="inline">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button type="button" class="text-xs text-amber-400 hover:underline" onclick="_confirm('重置订阅？').then(ok=>{if(ok)this.closest('form').submit()})">重置</button>
-              </form>
-            </td>
-          </tr>
-          <% }); %>
+          <tr><td colspan="7" class="py-8 text-center text-gray-500">加载中...</td></tr>
         </tbody>
       </table>
     </div>
@@ -53,66 +26,92 @@
 
   <script>
   (function(){
-    const PER_PAGE = 20;
-    let currentPage = 1;
-    let filteredRows = null;
+    const csrfToken = '<%= csrfToken %>';
+    let _searchTimer = null;
 
-    function getRows() {
-      if (filteredRows) return filteredRows;
-      return [...document.querySelectorAll('.user-row')];
+    function _fmtBytes(b) {
+      if (!b || b === 0) return '0 B';
+      const u = ['B','KB','MB','GB','TB'];
+      const i = Math.min(Math.floor(Math.log(b) / Math.log(1024)), u.length - 1);
+      return (b / Math.pow(1024, i)).toFixed(i > 0 ? 2 : 0) + ' ' + u[i];
     }
 
-    function render() {
-      const rows = getRows();
-      const total = rows.length;
-      const pages = Math.max(1, Math.ceil(total / PER_PAGE));
-      if (currentPage > pages) currentPage = pages;
-      const start = (currentPage - 1) * PER_PAGE;
-      const end = start + PER_PAGE;
+    window.loadUsers = async function(page = 1) {
+      const search = (document.getElementById('user-search').value || '').trim();
+      const params = new URLSearchParams({ page, search });
+      const resp = await fetch('/admin/api/users?' + params);
+      const data = await resp.json();
+      const tbody = document.getElementById('users-tbody');
+      const total = data.total;
+      document.getElementById('users-total-count').textContent = total;
 
-      // 先隐藏所有行
-      document.querySelectorAll('.user-row').forEach(r => r.style.display = 'none');
-      // 只显示当前页
-      rows.forEach((r, i) => r.style.display = (i >= start && i < end) ? '' : 'none');
+      if (!data.rows || data.rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-gray-500">无匹配用户</td></tr>';
+        document.getElementById('users-page-info').textContent = '';
+        document.getElementById('users-pagination').innerHTML = '';
+        return;
+      }
 
-      // 页码信息
-      document.getElementById('users-page-info').textContent = total > 0
-        ? `第 ${start+1}-${Math.min(end, total)} 条，共 ${total} 条`
-        : '无匹配用户';
+      tbody.innerHTML = data.rows.map(u => {
+        const statusClass = u.is_blocked ? 'bg-red-500/20 text-red-300' : u.is_frozen ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300';
+        const statusText = u.is_blocked ? '已封禁' : u.is_frozen ? '已冻结' : '正常';
+        const blockBtnClass = u.is_blocked ? 'text-emerald-400' : 'text-red-400';
+        const blockBtnText = u.is_blocked ? '解封' : '封禁';
+        const limitText = u.traffic_limit ? _fmtBytes(u.traffic_limit) : '∞';
+        return `<tr class="border-b border-white/5 hover:bg-white/[0.02]">
+          <td class="py-3 px-4 flex items-center gap-2">
+            <img src="${u.avatar_url || ''}" class="w-6 h-6 rounded-full ring-1 ring-white/10 bg-gray-800" onerror="this.style.display='none'">
+            <span class="text-white text-sm">${u.username}</span>
+            ${u.is_admin ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">管理</span>' : ''}
+          </td>
+          <td class="py-3 px-4 text-xs text-gray-500">${u.nodeloc_id}</td>
+          <td class="py-3 px-4 text-xs">${u.trust_level}</td>
+          <td class="py-3 px-4 text-xs text-gray-400">
+            ${_fmtBytes(u.total_traffic || 0)} / <span class="cursor-pointer text-cyan-400 hover:underline" onclick="setTrafficLimit(${u.id}, '${u.username}', ${u.traffic_limit || 0})">${limitText}</span>
+          </td>
+          <td class="py-3 px-4 text-xs text-gray-500">${u.last_login || '-'}</td>
+          <td class="py-3 px-4"><span class="text-[10px] px-2 py-0.5 rounded-full ${statusClass}">${statusText}</span></td>
+          <td class="py-3 px-4 space-x-2">
+            <form method="POST" action="/admin/api/users/${u.id}/toggle-block" class="inline"><input type="hidden" name="_csrf" value="${csrfToken}"><button class="text-xs ${blockBtnClass} hover:underline">${blockBtnText}</button></form>
+            <form method="POST" action="/admin/api/users/${u.id}/reset-token" class="inline"><input type="hidden" name="_csrf" value="${csrfToken}"><button type="button" class="text-xs text-amber-400 hover:underline" onclick="_confirm('重置订阅？').then(ok=>{if(ok)this.closest('form').submit()})">重置</button></form>
+          </td>
+        </tr>`;
+      }).join('');
+
+      // 分页信息
+      const limit = 20;
+      const pages = Math.ceil(total / limit);
+      const start = (page - 1) * limit + 1;
+      const end = Math.min(page * limit, total);
+      document.getElementById('users-page-info').textContent = `第 ${start}-${end} 条，共 ${total} 条`;
 
       // 分页按钮
       const nav = document.getElementById('users-pagination');
       nav.innerHTML = '';
       if (pages <= 1) return;
-
-      const mkBtn = (text, page, active) => {
+      const mkBtn = (text, p, active) => {
         const b = document.createElement('button');
         b.textContent = text;
-        b.className = active
-          ? 'px-2.5 py-1 rounded-lg text-xs bg-rose-600 text-white'
-          : 'px-2.5 py-1 rounded-lg text-xs glass text-gray-400 hover:text-white hover:bg-white/10 transition';
-        if (!active) b.onclick = () => { currentPage = page; render(); };
+        b.className = active ? 'px-2.5 py-1 rounded-lg text-xs bg-rose-600 text-white' : 'px-2.5 py-1 rounded-lg text-xs glass text-gray-400 hover:text-white hover:bg-white/10 transition';
+        if (!active) b.onclick = () => loadUsers(p);
         return b;
       };
-
-      if (currentPage > 1) nav.appendChild(mkBtn('‹', currentPage - 1, false));
-      // 显示最多 7 个页码
-      let s = Math.max(1, currentPage - 3), e = Math.min(pages, s + 6);
+      if (page > 1) nav.appendChild(mkBtn('‹', page - 1, false));
+      let s = Math.max(1, page - 3), e = Math.min(pages, s + 6);
       if (e - s < 6) s = Math.max(1, e - 6);
-      for (let p = s; p <= e; p++) nav.appendChild(mkBtn(p, p, p === currentPage));
-      if (currentPage < pages) nav.appendChild(mkBtn('›', currentPage + 1, false));
-    }
-
-    window.filterUsers = function() {
-      const q = document.getElementById('user-search').value.toLowerCase().trim();
-      const all = [...document.querySelectorAll('.user-row')];
-      if (!q) { filteredRows = null; }
-      else { filteredRows = all.filter(r => r.dataset.username.includes(q)); }
-      currentPage = 1;
-      render();
+      for (let p = s; p <= e; p++) nav.appendChild(mkBtn(p, p, p === page));
+      if (page < pages) nav.appendChild(mkBtn('›', page + 1, false));
     };
 
-    render();
+    window.filterUsers = function() {
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(() => loadUsers(1), 300);
+    };
+
+    document.getElementById('user-search').addEventListener('input', filterUsers);
+
+    // 初始加载
+    loadUsers(1);
   })();
   </script>
 </div>

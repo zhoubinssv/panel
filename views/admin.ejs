@@ -56,6 +56,8 @@
       if (name === 'diary') { loadDiary(1); }
       if (name === 'logs') loadLogs(1);
       if (name === 'abuse') loadSubStats(1);
+      if (name === 'users') loadUsers(1);
+      if (name === 'traffic') loadTraffic(1);
     }
     if (location.hash.slice(1)) switchTab(location.hash.slice(1));
     const _msg = new URLSearchParams(location.search).get('msg');

@@ -728,6 +728,17 @@ router.post('/agent-token/regenerate', (req, res) => {
   res.json({ token: globalToken, nodesUpdated: nodes.length });
 });
 
+// ========== 用户列表分页 API ==========
+
+router.get('/users', (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const search = (req.query.search || '').trim();
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const data = db.getAllUsersPaged(limit, offset, search);
+  res.json({ ...data, page });
+});
+
 // ========== 日志 API ==========
 
 router.get('/logs', (req, res) => {

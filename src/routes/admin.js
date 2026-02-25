@@ -15,14 +15,14 @@ router.get('/', (req, res) => {
   const onlineAgents = new Set(agentWs.getConnectedAgents().map(a => a.nodeId));
 
   res.render('admin', {
-    users: db.getAllUsers(),
+    users: [],
     nodes: db.getAllNodes(),
     onlineAgents,
     whitelist: db.getWhitelist(),
-    logs: db.getAuditLogs(50, 0, 'system'),
+    logs: { rows: [], total: 0 },
     globalTraffic: db.getGlobalTraffic(),
     todayTraffic: db.getTodayTraffic(),
-    usersTraffic: db.getAllUsersTraffic(new Date().toISOString().slice(0,10)),
+    usersTraffic: { rows: [], total: 0 },
     formatBytes,
     tgBotToken: db.getSetting('tg_bot_token') || '',
     tgChatId: db.getSetting('tg_chat_id') || '',

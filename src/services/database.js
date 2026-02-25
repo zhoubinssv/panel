@@ -191,6 +191,18 @@ function initTables() {
     )
   `);
 
+  // ========== 创建索引 ==========
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_traffic_daily_user_date ON traffic_daily(user_id, date);
+    CREATE INDEX IF NOT EXISTS idx_traffic_daily_node ON traffic_daily(node_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
+    CREATE INDEX IF NOT EXISTS idx_sub_access_log_user_time ON sub_access_log(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_user_node_uuid_node ON user_node_uuid(node_id);
+    CREATE INDEX IF NOT EXISTS idx_user_node_uuid_user ON user_node_uuid(user_id);
+    CREATE INDEX IF NOT EXISTS idx_traffic_user_node ON traffic(user_id, node_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_chats_user_session ON ai_chats(user_id, session_id);
+  `);
+
   // 初始化默认配置
   const upsert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   upsert.run('whitelist_enabled', 'false');
@@ -417,6 +429,20 @@ function getAllUsers() {
     FROM users u LEFT JOIN traffic_daily t ON u.id = t.user_id
     GROUP BY u.id ORDER BY total_traffic DESC
   `).all();
+}
+
+// 分页版用户列表
+function getAllUsersPaged(limit = 20, offset = 0, search = '') {
+  const where = search ? "WHERE u.username LIKE '%' || @search || '%' OR u.name LIKE '%' || @search || '%'" : '';
+  const rows = getDb().prepare(`
+    SELECT u.*, COALESCE(SUM(t.uplink),0)+COALESCE(SUM(t.downlink),0) as total_traffic
+    FROM users u LEFT JOIN traffic_daily t ON u.id = t.user_id
+    ${where}
+    GROUP BY u.id ORDER BY total_traffic DESC
+    LIMIT @limit OFFSET @offset
+  `).all({ limit, offset, search });
+  const total = getDb().prepare(`SELECT COUNT(*) as c FROM users u ${where}`).get({ search }).c;
+  return { rows, total };
 }
 
 function blockUser(id, blocked) {
@@ -1108,7 +1134,7 @@ function getDiaryStats() {
 }
 
 module.exports = {
-  getDb, findOrCreateUser, getUserBySubToken, getUserById, getUserCount, getAllUsers,
+  getDb, findOrCreateUser, getUserBySubToken, getUserById, getUserCount, getAllUsers, getAllUsersPaged,
   blockUser, setUserTrafficLimit, isTrafficExceeded, freezeUser, unfreezeUser, autoFreezeInactiveUsers, resetSubToken,
   isInWhitelist, getWhitelist, addToWhitelist, removeFromWhitelist,
   isInRegisterWhitelist, getRegisterWhitelist, addToRegisterWhitelist, removeFromRegisterWhitelist,

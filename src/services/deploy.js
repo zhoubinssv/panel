@@ -229,7 +229,29 @@ async function syncNodeConfig(node, db) {
 }
 
 // 同步所有活跃节点的配置
-async function syncAllNodesConfig(db) {
+// 去抖版本：短时间多次调用只执行最后一次
+let _syncDebounceTimer = null;
+let _syncDebounceResolvers = [];
+
+function syncAllNodesConfigDebounced(db) {
+  return new Promise((resolve, reject) => {
+    _syncDebounceResolvers.push({ resolve, reject });
+    if (_syncDebounceTimer) clearTimeout(_syncDebounceTimer);
+    _syncDebounceTimer = setTimeout(async () => {
+      _syncDebounceTimer = null;
+      const resolvers = _syncDebounceResolvers;
+      _syncDebounceResolvers = [];
+      try {
+        const result = await _syncAllNodesConfigImpl(db);
+        resolvers.forEach(r => r.resolve(result));
+      } catch (err) {
+        resolvers.forEach(r => r.reject(err));
+      }
+    }, 3000);
+  });
+}
+
+async function _syncAllNodesConfigImpl(db) {
   const nodes = db.getAllNodes(true);
   let success = 0, failed = 0;
   const CONCURRENCY = 5;
@@ -465,4 +487,6 @@ WantedBy=multi-user.target`;
   console.log(`[Agent安装] 节点#${nodeId} Agent 安装完成`);
 }
 
+// syncAllNodesConfig 对外暴露去抖版本
+const syncAllNodesConfig = syncAllNodesConfigDebounced;
 module.exports = { deployNode, detectRegion, generateNodeName, syncNodeConfig, syncAllNodesConfig, pushConfigToNode };

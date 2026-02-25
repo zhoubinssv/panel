@@ -8,6 +8,15 @@ const QRCode = require('qrcode');
 
 const router = express.Router();
 
+// ========== 订阅接口内存缓存 ==========
+const _subCache = new Map(); // token -> { data, headers, ts }
+const SUB_CACHE_TTL = 60000; // 60秒缓存
+
+function invalidateSubCache(token) {
+  if (token) _subCache.delete(token);
+  else _subCache.clear();
+}
+
 function getRealClientIp(req) {
   const cfIp = req.headers['cf-connecting-ip'];
   if (cfIp) return String(cfIp).trim();
@@ -68,7 +77,6 @@ router.get('/', requireAuth, (req, res) => {
   const isVip = db.isInWhitelist(req.user.nodeloc_id);
   const nodes = db.getAllNodes(true).filter(n => isVip || req.user.trust_level >= (n.min_level || 0));
   const user = req.user;
-  db.ensureUserHasAllNodeUuids(user.id);
 
   const traffic = db.getUserTraffic(user.id);
   const globalTraffic = db.getGlobalTraffic();
@@ -110,12 +118,31 @@ router.get('/sub-qr', requireAuth, async (req, res) => {
 
 // 订阅接口（每个用户返回自己的 UUID）
 router.get('/sub/:token', subLimiter, (req, res) => {
-  const user = db.getUserBySubToken(req.params.token);
+  const token = req.params.token;
+  const ua = req.headers['user-agent'] || '';
+  const forceType = req.query.type;
+  const clientType = forceType || detectClient(ua);
+  const cacheKey = `${token}:${clientType}`;
+
+  // 记录拉取 IP（始终执行，不受缓存影响）
+  const clientIP = getRealClientIp(req);
+
+  // 检查缓存
+  const cached = _subCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < SUB_CACHE_TTL) {
+    // 异步记录访问日志
+    const user = db.getUserBySubToken(token);
+    if (user) {
+      db.logSubAccess(user.id, clientIP, ua);
+    }
+    res.set(cached.headers);
+    return res.send(cached.body);
+  }
+
+  const user = db.getUserBySubToken(token);
   if (!user) return res.status(403).send('无效的订阅链接');
 
-  // 记录拉取 IP（优先真实来源 IP）
-  const clientIP = getRealClientIp(req);
-  db.logSubAccess(user.id, clientIP, req.headers['user-agent']);
+  db.logSubAccess(user.id, clientIP, ua);
 
   // 滥用检测：24h 内 ≥20 个不同 IP 触发通知（同一用户1小时内只通知一次）
   const ips = db.getSubAccessIPs(user.id, 24);
@@ -134,10 +161,6 @@ router.get('/sub/:token', subLimiter, (req, res) => {
 
   const isVip = db.isInWhitelist(user.nodeloc_id);
   const nodes = db.getAllNodes(true).filter(n => isVip || user.trust_level >= (n.min_level || 0));
-  const ua = req.headers['user-agent'] || '';
-  const forceType = req.query.type;
-  const clientType = forceType || detectClient(ua);
-  db.ensureUserHasAllNodeUuids(user.id);
 
   // 获取用户在每个节点的 UUID
   const userNodes = nodes.map(n => {
@@ -160,33 +183,44 @@ router.get('/sub/:token', subLimiter, (req, res) => {
   const panelName = encodeURIComponent('小姨子的诱惑');
 
   if (clientType === 'clash') {
-    res.set({
+    const headers = {
       'Content-Type': 'text/yaml; charset=utf-8',
       'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
       'Profile-Update-Interval': '6',
       'Subscription-Userinfo': subInfo,
       'Cache-Control': 'no-cache'
-    });
-    return res.send(generateClashSubForUser(finalNodes));
+    };
+    const body = generateClashSubForUser(finalNodes);
+    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    res.set(headers);
+    return res.send(body);
   }
 
   if (clientType === 'singbox') {
-    res.set({
+    const headers = {
       'Content-Type': 'application/json; charset=utf-8',
       'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
       'Subscription-Userinfo': subInfo,
       'Cache-Control': 'no-cache'
-    });
-    return res.send(generateSingboxSubForUser(finalNodes));
+    };
+    const body = generateSingboxSubForUser(finalNodes);
+    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    res.set(headers);
+    return res.send(body);
   }
 
-  res.set({
-    'Content-Type': 'text/plain; charset=utf-8',
-    'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
-    'Subscription-Userinfo': subInfo,
-    'Cache-Control': 'no-cache'
-  });
-  res.send(generateV2raySubForUser(finalNodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes }));
+  {
+    const headers = {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
+      'Subscription-Userinfo': subInfo,
+      'Cache-Control': 'no-cache'
+    };
+    const body = generateV2raySubForUser(finalNodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    res.set(headers);
+    res.send(body);
+  }
 });
 
 // 在线用户数（从巡检缓存读取，每 5 分钟自动刷新）
