@@ -2,7 +2,11 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../../services/database');
 const agentWs = require('../../services/agent-ws');
-const { parseIntId } = require('../adminApi');
+
+function parseIntId(raw) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 const router = express.Router();
 

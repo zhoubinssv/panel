@@ -2,8 +2,12 @@ const express = require('express');
 const db = require('../../services/database');
 const aws = require('../../services/aws');
 const deployService = require('../../services/deploy');
-const { parseIntId } = require('../adminApi');
 const { notify } = require('../../services/notify');
+
+function parseIntId(raw) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 const router = express.Router();
 
