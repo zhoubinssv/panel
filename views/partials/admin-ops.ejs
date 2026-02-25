@@ -1,15 +1,61 @@
-<!-- AI 运维 Tab -->
+<!-- 运维仪表盘 Tab -->
 <div class="tab-panel space-y-4" data-tab="ops">
-  <!-- 说明 -->
+
+  <!-- 节点健康总览 -->
   <div class="glass rounded-2xl p-5">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="text-white text-sm font-medium">🤖 AI 运维</h3>
-      <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">由 OpenClaw 直接管理</span>
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-white text-sm font-medium">📊 节点健康总览</h3>
+      <button onclick="loadOpsDashboard()" class="text-[11px] px-3 py-1 rounded-full bg-white/5 text-gray-400 hover:bg-white/10 transition">🔄 刷新</button>
     </div>
-    <p class="text-gray-500 text-xs leading-relaxed">
-      AI 运维由本机 OpenClaw 直接操作（读数据库、管进程、SSH 节点），无需 API 中间层。
-      以下配置控制 AI 的自动化行为。
-    </p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="ops-health-cards">
+      <div class="rounded-xl bg-black/30 p-4 text-center border border-white/5">
+        <div class="text-3xl font-bold text-white" id="ops-total">-</div>
+        <div class="text-[11px] text-gray-500 mt-1">总节点</div>
+      </div>
+      <div class="rounded-xl bg-black/30 p-4 text-center border border-emerald-500/20">
+        <div class="text-3xl font-bold text-emerald-400" id="ops-online">-</div>
+        <div class="text-[11px] text-gray-500 mt-1">在线</div>
+      </div>
+      <div class="rounded-xl bg-black/30 p-4 text-center border border-yellow-500/20">
+        <div class="text-3xl font-bold text-yellow-400" id="ops-offline">-</div>
+        <div class="text-[11px] text-gray-500 mt-1">离线</div>
+      </div>
+      <div class="rounded-xl bg-black/30 p-4 text-center border border-red-500/20">
+        <div class="text-3xl font-bold text-red-400" id="ops-blocked">-</div>
+        <div class="text-[11px] text-gray-500 mt-1">疑似被墙</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 小乖巡检状态 -->
+  <div class="glass rounded-2xl p-5">
+    <h3 class="text-white text-sm font-medium mb-3">🐱 小乖巡检状态</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="rounded-xl bg-black/20 p-3 text-center">
+        <div class="text-lg font-bold text-blue-400" id="ops-last-patrol">-</div>
+        <div class="text-[10px] text-gray-500 mt-1">最近巡检</div>
+      </div>
+      <div class="rounded-xl bg-black/20 p-3 text-center">
+        <div class="text-lg font-bold text-cyan-400" id="ops-patrol-count">0</div>
+        <div class="text-[10px] text-gray-500 mt-1">今日巡检</div>
+      </div>
+      <div class="rounded-xl bg-black/20 p-3 text-center">
+        <div class="text-lg font-bold text-orange-400" id="ops-swap-count">0</div>
+        <div class="text-[10px] text-gray-500 mt-1">今日换IP</div>
+      </div>
+      <div class="rounded-xl bg-black/20 p-3 text-center">
+        <div class="text-lg font-bold text-green-400" id="ops-fix-count">0</div>
+        <div class="text-[10px] text-gray-500 mt-1">今日修复</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 今日运维事件时间线 -->
+  <div class="glass rounded-2xl p-5">
+    <h3 class="text-white text-sm font-medium mb-3">🕐 运维事件时间线</h3>
+    <div id="ops-timeline" class="space-y-2 max-h-[400px] overflow-y-auto">
+      <p class="text-gray-600 text-xs text-center py-4">加载中...</p>
+    </div>
   </div>
 
   <!-- 运维配置 -->
@@ -36,19 +82,33 @@
 
     <div class="mt-4 space-y-2">
       <label class="flex items-center justify-between p-3 rounded-xl bg-black/20 cursor-pointer hover:bg-white/5 transition">
-        <div><span class="text-white text-sm">🔄 被墙自动换 IP</span><span class="text-gray-600 text-xs ml-2">检测到被墙时自动换 IP</span></div>
+        <div>
+          <span class="text-white text-sm">🔄 被墙自动换 IP</span>
+          <span class="text-emerald-400 text-[10px] ml-2">✅ 已生效</span>
+          <span class="text-gray-600 text-xs ml-1">health.js 已实现</span>
+        </div>
         <input type="checkbox" id="ops-auto-swap-ip" class="accent-rose-500">
       </label>
       <label class="flex items-center justify-between p-3 rounded-xl bg-black/20 cursor-pointer hover:bg-white/5 transition">
-        <div><span class="text-white text-sm">🔧 节点自动修复</span><span class="text-gray-600 text-xs ml-2">xray 异常时自动重启</span></div>
+        <div>
+          <span class="text-white text-sm">🔧 节点自动修复</span>
+          <span class="text-gray-500 text-[10px] ml-2">🔲 由 OpenClaw AI 巡检时执行</span>
+        </div>
         <input type="checkbox" id="ops-auto-repair" class="accent-rose-500">
       </label>
       <label class="flex items-center justify-between p-3 rounded-xl bg-black/20 cursor-pointer hover:bg-white/5 transition">
-        <div><span class="text-white text-sm">📈 自动扩缩容</span><span class="text-gray-600 text-xs ml-2">节点不足时自动创建新实例</span></div>
+        <div>
+          <span class="text-white text-sm">📈 自动扩缩容</span>
+          <span class="text-gray-500 text-[10px] ml-2">🔲 由 OpenClaw AI 巡检时执行</span>
+        </div>
         <input type="checkbox" id="ops-auto-scale" class="accent-rose-500">
       </label>
       <label class="flex items-center justify-between p-3 rounded-xl bg-black/20 cursor-pointer hover:bg-white/5 transition">
-        <div><span class="text-white text-sm">🛡️ 面板守护</span><span class="text-gray-600 text-xs ml-2">面板挂了自动重启</span></div>
+        <div>
+          <span class="text-white text-sm">🛡️ 面板守护</span>
+          <span class="text-emerald-400 text-[10px] ml-2">✅ 已生效</span>
+          <span class="text-gray-600 text-xs ml-1">PM2 已实现</span>
+        </div>
         <input type="checkbox" id="ops-panel-guard" class="accent-rose-500">
       </label>
     </div>
@@ -56,19 +116,17 @@
     <button onclick="saveOpsConfig()" class="mt-4 w-full bg-rose-600 hover:bg-rose-500 text-white py-2 rounded-xl text-sm transition">保存配置</button>
   </div>
 
-  <!-- 最近运维日志 -->
+  <!-- 诊断记录 -->
   <div class="glass rounded-2xl p-5">
-    <h3 class="text-white text-sm font-medium mb-3">📋 最近运维日志</h3>
-    <div class="overflow-x-auto max-h-[300px] overflow-y-auto" id="ops-logs-container">
-      <p class="text-gray-600 text-xs text-center py-4">切换到此 Tab 时加载</p>
+    <h3 class="text-white text-sm font-medium mb-3">🩺 诊断记录</h3>
+    <div id="ops-diagnoses" class="space-y-2 max-h-[300px] overflow-y-auto">
+      <p class="text-gray-600 text-xs text-center py-4">加载中...</p>
     </div>
   </div>
 </div>
 
 <script>
-// ========== AI 运维配置 ==========
 (function() {
-  // 配置 key 映射
   const OPS_KEYS = [
     { id: 'ops-target-nodes', key: 'ops_target_nodes', type: 'int' },
     { id: 'ops-patrol-interval', key: 'ops_patrol_interval', type: 'int' },
@@ -80,10 +138,92 @@
     { id: 'ops-panel-guard', key: 'ops_panel_guard', type: 'bool' },
   ];
 
-  window.loadOpsConfig = async function() {
+  const EVENT_ICONS = {
+    node_blocked: { icon: '🚫', color: 'text-red-400' },
+    auto_swap_ip: { icon: '🔄', color: 'text-orange-400' },
+    swap_ip: { icon: '🔄', color: 'text-orange-400' },
+    ip_rotated: { icon: '🔄', color: 'text-orange-400' },
+    node_recovered: { icon: '✅', color: 'text-emerald-400' },
+    deploy: { icon: '🚀', color: 'text-blue-400' },
+    health_check: { icon: '💓', color: 'text-cyan-400' },
+    auto_repair: { icon: '🔧', color: 'text-yellow-400' },
+    ops_config: { icon: '⚙️', color: 'text-gray-400' },
+    node_create: { icon: '➕', color: 'text-green-400' },
+    node_delete: { icon: '➖', color: 'text-red-400' },
+    patrol: { icon: '🐱', color: 'text-purple-400' },
+    instance_create: { icon: '☁️', color: 'text-blue-400' },
+    instance_terminate: { icon: '💀', color: 'text-red-400' },
+    xray_restart: { icon: '🔧', color: 'text-yellow-400' },
+  };
+
+  const STATUS_COLORS = { pending: 'text-yellow-400 border-yellow-500/20', resolved: 'text-emerald-400 border-emerald-500/20', failed: 'text-red-400 border-red-500/20' };
+
+  window.loadOpsDashboard = async function() {
     try {
-      const res = await fetch('/admin/api/ops-config');
-      const cfg = await res.json();
+      const [dashRes, eventsRes, diagRes, cfgRes] = await Promise.all([
+        fetch('/admin/api/ops-dashboard'), fetch('/admin/api/ops-events'),
+        fetch('/admin/api/ops-diagnoses'), fetch('/admin/api/ops-config')
+      ]);
+      const dash = await dashRes.json();
+      const events = await eventsRes.json();
+      const diags = await diagRes.json();
+      const cfg = await cfgRes.json();
+
+      // 健康卡片
+      document.getElementById('ops-total').textContent = dash.total;
+      document.getElementById('ops-online').textContent = dash.online;
+      document.getElementById('ops-offline').textContent = dash.offline;
+      document.getElementById('ops-blocked').textContent = dash.blocked;
+
+      // 巡检状态
+      const lp = dash.lastPatrol;
+      document.getElementById('ops-last-patrol').textContent = lp ? lp.replace('T', ' ').slice(0, 16) : '从未';
+      document.getElementById('ops-patrol-count').textContent = dash.todayStats?.patrols || 0;
+      document.getElementById('ops-swap-count').textContent = dash.todayStats?.swaps || 0;
+      document.getElementById('ops-fix-count').textContent = dash.todayStats?.fixes || 0;
+
+      // 事件时间线
+      const tl = document.getElementById('ops-timeline');
+      if (!events.length) {
+        tl.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">暂无运维事件</p>';
+      } else {
+        tl.innerHTML = events.map(e => {
+          const ei = EVENT_ICONS[e.action] || { icon: '📋', color: 'text-gray-400' };
+          const time = (e.created_at || '').replace('T', ' ').slice(0, 16);
+          return `<div class="flex items-start gap-3 p-2 rounded-lg bg-black/20 hover:bg-white/5 transition">
+            <span class="text-lg flex-shrink-0">${ei.icon}</span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="${ei.color} text-xs font-medium">${e.action}</span>
+                <span class="text-gray-600 text-[10px]">${time}</span>
+              </div>
+              <p class="text-gray-500 text-[11px] truncate mt-0.5">${e.detail || ''}</p>
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      // 诊断记录
+      const dc = document.getElementById('ops-diagnoses');
+      if (!diags.length) {
+        dc.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">暂无诊断记录</p>';
+      } else {
+        dc.innerHTML = diags.map(d => {
+          const sc = STATUS_COLORS[d.status] || STATUS_COLORS.pending;
+          const time = (d.created_at || '').replace('T', ' ').slice(0, 16);
+          return `<div class="p-3 rounded-xl bg-black/20 border ${sc.split(' ')[1] || 'border-white/5'}">
+            <div class="flex items-center justify-between">
+              <span class="text-white text-xs font-medium">${d.node_name || '节点#' + d.node_id}</span>
+              <span class="${sc.split(' ')[0]} text-[10px] font-medium uppercase">${d.status}</span>
+            </div>
+            <p class="text-gray-500 text-[11px] mt-1">${d.diag_info || ''}</p>
+            ${d.ai_analysis ? `<p class="text-gray-400 text-[11px] mt-1">💡 ${d.ai_analysis}</p>` : ''}
+            <span class="text-gray-600 text-[10px]">${time}</span>
+          </div>`;
+        }).join('');
+      }
+
+      // 配置
       for (const k of OPS_KEYS) {
         const el = document.getElementById(k.id);
         if (!el) continue;
@@ -91,25 +231,7 @@
         if (k.type === 'bool') el.checked = val === 'true';
         else if (val) el.value = val;
       }
-    } catch {}
-
-    // 运维日志
-    const container = document.getElementById('ops-logs-container');
-    try {
-      const res2 = await fetch('/admin/api/logs?page=1&type=system');
-      const d = await res2.json();
-      const opsKeywords = ['ops_', 'swap_ip', 'deploy', 'repair', 'node_', 'aws_', 'rotate', 'health'];
-      const opsLogs = (d.rows || []).filter(l => l.action && opsKeywords.some(kw => l.action.includes(kw)));
-      if (opsLogs.length === 0) {
-        container.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">暂无运维日志</p>';
-      } else {
-        container.innerHTML = '<table class="w-full text-sm text-left"><thead class="text-gray-500 border-b border-white/5 text-xs sticky top-0" style="background:rgba(15,11,30,0.95)"><tr><th class="py-2 px-3">时间</th><th class="py-2 px-3">操作</th><th class="py-2 px-3">详情</th></tr></thead><tbody class="text-gray-300">' +
-          opsLogs.slice(0, 20).map(l => `<tr class="border-b border-white/5"><td class="py-1.5 px-3 text-[11px] text-gray-500">${l.created_at}</td><td class="py-1.5 px-3 text-[11px]">${l.action}</td><td class="py-1.5 px-3 text-[11px] text-gray-500 max-w-xs truncate">${l.detail || ''}</td></tr>`).join('') +
-          '</tbody></table>';
-      }
-    } catch {
-      container.innerHTML = '<p class="text-gray-600 text-xs text-center py-4">暂无运维日志</p>';
-    }
+    } catch (e) { console.error('ops dashboard error', e); }
   };
 
   window.saveOpsConfig = async function() {
@@ -128,6 +250,8 @@
       else showToast('❌ 保存失败');
     } catch (e) { showToast('❌ ' + e.message); }
   };
+
+  window.loadOpsConfig = window.loadOpsDashboard;
 })();
-if (location.hash === '#ops') setTimeout(loadOpsConfig, 100);
+if (location.hash === '#ops') setTimeout(loadOpsDashboard, 100);
 </script>

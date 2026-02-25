@@ -111,4 +111,45 @@ router.post('/ops-config', (req, res) => {
   res.json({ ok: true });
 });
 
+// 运维仪表盘 API
+router.get('/ops-dashboard', (req, res) => {
+  const d = db.getDb();
+  const nodes = db.getAllNodes();
+  const total = nodes.length;
+  const online = nodes.filter(n => n.is_active === 1 && n.fail_count === 0).length;
+  const blocked = nodes.filter(n => n.fail_count >= 3).length;
+  const offline = total - online;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const lastPatrol = db.getSetting('ops_last_patrol') || '';
+
+  const todayStats = d.prepare(`
+    SELECT
+      COUNT(*) FILTER (WHERE action LIKE '%patrol%' OR action = 'health_check') as patrols,
+      COUNT(*) FILTER (WHERE action IN ('auto_swap_ip', 'swap_ip', 'ip_rotated')) as swaps,
+      COUNT(*) FILTER (WHERE action IN ('auto_repair', 'node_recovered')) as fixes
+    FROM audit_log WHERE date(created_at) = ?
+  `).get(today) || { patrols: 0, swaps: 0, fixes: 0 };
+
+  res.json({ total, online, offline, blocked, lastPatrol, todayStats });
+});
+
+router.get('/ops-events', (req, res) => {
+  const d = db.getDb();
+  const limit = parseInt(req.query.limit) || 20;
+  const events = d.prepare(`
+    SELECT id, action, detail, created_at FROM audit_log
+    WHERE action IN ('node_blocked','auto_swap_ip','swap_ip','ip_rotated','node_recovered',
+      'deploy','health_check','auto_repair','ops_config','node_create','node_delete',
+      'patrol','instance_create','instance_terminate','xray_restart')
+    ORDER BY created_at DESC LIMIT ?
+  `).all(limit);
+  res.json(events);
+});
+
+router.get('/ops-diagnoses', (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+  res.json(db.getAllDiagnoses(limit));
+});
+
 module.exports = router;

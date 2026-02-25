@@ -11,7 +11,6 @@ const trafficRepo = require('./repos/trafficRepo');
 const settingsRepo = require('./repos/settingsRepo');
 const uuidRepo = require('./repos/uuidRepo');
 const awsRepo = require('./repos/awsRepo');
-const aiRepo = require('./repos/aiRepo');
 const subAccessRepo = require('./repos/subAccessRepo');
 const opsRepo = require('./repos/opsRepo');
 
@@ -51,7 +50,6 @@ function initRepos() {
   });
   trafficRepo.init({ getDb, getUserById: userRepo.getUserById });
   awsRepo.init(deps);
-  aiRepo.init(deps);
   subAccessRepo.init({ getDb, getUserById: userRepo.getUserById });
   opsRepo.init(deps);
 }
@@ -152,43 +150,6 @@ function initTables() {
       FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
     );
 
-    -- AI 服务商配置表
-    CREATE TABLE IF NOT EXISTS ai_providers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL CHECK(type IN ('openai', 'gemini', 'claude')),
-      name TEXT NOT NULL,
-      endpoint TEXT NOT NULL,
-      api_key TEXT NOT NULL,
-      model_id TEXT NOT NULL,
-      model_name TEXT NOT NULL DEFAULT '',
-      enabled INTEGER DEFAULT 1,
-      priority INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    -- AI 对话历史表
-    CREATE TABLE IF NOT EXISTS ai_chats (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      session_id TEXT NOT NULL DEFAULT 'default',
-      role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
-      content TEXT NOT NULL,
-      provider_id INTEGER,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    );
-
-    -- AI 会话表
-    CREATE TABLE IF NOT EXISTS ai_sessions (
-      id TEXT PRIMARY KEY,
-      user_id INTEGER NOT NULL,
-      title TEXT NOT NULL DEFAULT '新对话',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    );
-
     -- 流量汇总表（按天）
     CREATE TABLE IF NOT EXISTS traffic_daily (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -236,7 +197,6 @@ function initTables() {
     CREATE INDEX IF NOT EXISTS idx_user_node_uuid_node ON user_node_uuid(node_id);
     CREATE INDEX IF NOT EXISTS idx_user_node_uuid_user ON user_node_uuid(user_id);
     CREATE INDEX IF NOT EXISTS idx_traffic_user_node ON traffic(user_id, node_id);
-    CREATE INDEX IF NOT EXISTS idx_ai_chats_user_session ON ai_chats(user_id, session_id);
   `);
 
   // 初始化默认配置
@@ -345,6 +305,29 @@ function initTables() {
     )
   `);
 
+  // Sprint 7: 清理废弃 AI 表
+  db.exec("DROP TABLE IF EXISTS ai_providers");
+  db.exec("DROP TABLE IF EXISTS ai_chats");
+  db.exec("DROP TABLE IF EXISTS ai_sessions");
+
+  // Sprint 7: ops_diagnosis 索引
+  db.exec("CREATE INDEX IF NOT EXISTS idx_ops_diagnosis_node ON ops_diagnosis(node_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_ops_diagnosis_status ON ops_diagnosis(status)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_ops_diagnosis_created ON ops_diagnosis(created_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action)");
+
+  // Sprint 7: 初始化运维配置 keys
+  const upsertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+  upsertSetting.run('ops_last_patrol', '');
+  upsertSetting.run('ops_target_nodes', '0');
+  upsertSetting.run('ops_patrol_interval', '30');
+  upsertSetting.run('ops_max_daily_swaps', '10');
+  upsertSetting.run('ops_max_daily_creates', '3');
+  upsertSetting.run('ops_auto_swap_ip', 'true');
+  upsertSetting.run('ops_auto_repair', 'false');
+  upsertSetting.run('ops_auto_scale', 'false');
+  upsertSetting.run('ops_panel_guard', 'true');
+
   // 迁移：白名单表改用 nodeloc_id
   const wlCols = db.prepare("PRAGMA table_info(whitelist)").all().map(c => c.name);
   if (!wlCols.includes('nodeloc_id')) {
@@ -377,19 +360,6 @@ function initTables() {
       ALTER TABLE traffic_daily_new RENAME TO traffic_daily;
     `);
     db.exec("PRAGMA foreign_keys=ON");
-  }
-
-  const aiCols = db.prepare("PRAGMA table_info(ai_providers)").all().map(c => c.name);
-  if (!aiCols.includes('system_prompt')) {
-    db.exec("ALTER TABLE ai_providers ADD COLUMN system_prompt TEXT DEFAULT ''");
-  }
-
-  const chatCols = db.prepare("PRAGMA table_info(ai_chats)").all().map(c => c.name);
-  if (!chatCols.includes('session_id')) {
-    db.exec("ALTER TABLE ai_chats ADD COLUMN session_id TEXT NOT NULL DEFAULT 'default'");
-  }
-  if (!chatCols.includes('provider_id')) {
-    db.exec("ALTER TABLE ai_chats ADD COLUMN provider_id INTEGER");
   }
 
   // Sprint 6 迁移：节点分组/标签
@@ -474,21 +444,6 @@ module.exports = {
   addAwsAccount: (...a) => awsRepo.addAwsAccount(...a),
   updateAwsAccount: (...a) => awsRepo.updateAwsAccount(...a),
   deleteAwsAccount: (...a) => awsRepo.deleteAwsAccount(...a),
-  // AI
-  getAllAiProviders: (...a) => aiRepo.getAllAiProviders(...a),
-  getEnabledAiProviders: (...a) => aiRepo.getEnabledAiProviders(...a),
-  getAiProviderById: (...a) => aiRepo.getAiProviderById(...a),
-  addAiProvider: (...a) => aiRepo.addAiProvider(...a),
-  updateAiProvider: (...a) => aiRepo.updateAiProvider(...a),
-  deleteAiProvider: (...a) => aiRepo.deleteAiProvider(...a),
-  addAiChat: (...a) => aiRepo.addAiChat(...a),
-  getAiChatHistory: (...a) => aiRepo.getAiChatHistory(...a),
-  clearAiChatHistory: (...a) => aiRepo.clearAiChatHistory(...a),
-  createAiSession: (...a) => aiRepo.createAiSession(...a),
-  getAiSessions: (...a) => aiRepo.getAiSessions(...a),
-  getAiSessionById: (...a) => aiRepo.getAiSessionById(...a),
-  updateAiSessionTitle: (...a) => aiRepo.updateAiSessionTitle(...a),
-  deleteAiSession: (...a) => aiRepo.deleteAiSession(...a),
   // 订阅访问
   logSubAccess: (...a) => subAccessRepo.logSubAccess(...a),
   getSubAccessIPs: (...a) => subAccessRepo.getSubAccessIPs(...a),

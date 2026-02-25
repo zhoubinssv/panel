@@ -118,10 +118,8 @@ cron.schedule('0 4 * * *', async () => {
   try {
     const db = dbModule;
     const d = db.getDb();
-    const r1 = d.prepare("DELETE FROM ai_chats WHERE created_at < datetime('now', '-30 days')").run();
-    const r2 = d.prepare("DELETE FROM ai_sessions WHERE updated_at < datetime('now', '-30 days')").run();
     const r3 = d.prepare("DELETE FROM audit_log WHERE created_at < datetime('now', '-90 days')").run();
-    logger.info({ chat: r1.changes, session: r2.changes, audit: r3.changes }, '定时清理完成');
+    logger.info({ audit: r3.changes }, '定时清理完成');
 
     // 自动冻结 15 天未登录的用户
     const frozen = db.autoFreezeInactiveUsers(15);
