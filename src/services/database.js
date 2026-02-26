@@ -322,6 +322,24 @@ function initTables() {
     )
   `);
 
+  // 捐赠节点表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS node_donations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      status TEXT DEFAULT 'pending',
+      node_id INTEGER,
+      server_ip TEXT,
+      region TEXT,
+      remark TEXT,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      approved_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE SET NULL
+    )
+  `);
+
   // Sprint 7: 清理废弃 AI 表
   db.exec("DROP TABLE IF EXISTS ai_providers");
   db.exec("DROP TABLE IF EXISTS ai_chats");

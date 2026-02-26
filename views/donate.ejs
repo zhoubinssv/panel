@@ -1,0 +1,143 @@
+<%- include('partials/head', { title: '捐赠节点' }) %>
+
+  <!-- 导航 -->
+  <nav class="glass-solid sticky top-0 z-40 px-6 py-3">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center text-sm">🍑</div>
+        <span class="text-white font-semibold hidden sm:block">小姨子的诱惑</span>
+      </a>
+      <a href="/" class="text-xs px-3 py-1.5 rounded-full glass text-gray-300 hover:text-white transition">← 返回面板</a>
+    </div>
+  </nav>
+
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+    <!-- 标题 -->
+    <div class="text-center">
+      <h1 class="text-white text-2xl font-bold">🎁 捐赠节点</h1>
+      <p class="text-gray-500 text-sm mt-2">分享你的闲置服务器，为社区贡献一份力量</p>
+    </div>
+
+    <!-- 说明卡片 -->
+    <div class="glass rounded-2xl p-6 space-y-4">
+      <h2 class="text-white font-semibold">📋 如何捐赠</h2>
+      <div class="space-y-3 text-gray-400 text-sm leading-relaxed">
+        <div class="flex gap-3">
+          <span class="text-rose-400 font-bold shrink-0">1</span>
+          <span>点击下方「生成安装命令」获取专属部署命令</span>
+        </div>
+        <div class="flex gap-3">
+          <span class="text-rose-400 font-bold shrink-0">2</span>
+          <span>在你的服务器上以 root 身份执行该命令</span>
+        </div>
+        <div class="flex gap-3">
+          <span class="text-rose-400 font-bold shrink-0">3</span>
+          <span>脚本会自动安装 Xray + Agent 并连回平台</span>
+        </div>
+        <div class="flex gap-3">
+          <span class="text-rose-400 font-bold shrink-0">4</span>
+          <span>管理员审核通过后节点上线，你将获得捐赠者标识</span>
+        </div>
+      </div>
+      <div class="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+        ⚠️ 要求：Linux 系统（Debian/Ubuntu/CentOS）、公网 IP、root 权限、至少 512MB 内存
+      </div>
+    </div>
+
+    <!-- 安装命令 -->
+    <div class="glass rounded-2xl p-6 space-y-4">
+      <h2 class="text-white font-semibold">🚀 安装命令</h2>
+      <% if (donations.some(d => d.status === 'pending')) { %>
+        <div class="relative">
+          <pre class="bg-black/40 rounded-xl p-4 text-green-400 text-xs overflow-x-auto whitespace-pre-wrap break-all select-all" id="install-cmd"><%= installCmd %></pre>
+          <button onclick="copyCmd()" class="absolute top-2 right-2 text-xs px-3 py-1 rounded-lg bg-rose-500/80 text-white hover:bg-rose-500 transition" id="copy-btn">复制</button>
+        </div>
+        <p class="text-gray-600 text-xs">令牌状态：<span class="text-amber-400">等待连接...</span></p>
+      <% } else { %>
+        <button onclick="generateToken()" class="w-full py-3 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-rose-500 to-orange-500 shadow-lg shadow-rose-500/25 hover:shadow-rose-500/40 transition" id="gen-btn">生成安装命令</button>
+        <div id="cmd-area" class="hidden">
+          <div class="relative">
+            <pre class="bg-black/40 rounded-xl p-4 text-green-400 text-xs overflow-x-auto whitespace-pre-wrap break-all select-all" id="install-cmd"></pre>
+            <button onclick="copyCmd()" class="absolute top-2 right-2 text-xs px-3 py-1 rounded-lg bg-rose-500/80 text-white hover:bg-rose-500 transition" id="copy-btn">复制</button>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
+    <!-- 我的捐赠 -->
+    <% if (donations.length > 0) { %>
+    <div class="glass rounded-2xl p-6 space-y-4">
+      <h2 class="text-white font-semibold">📦 我的捐赠</h2>
+      <div class="space-y-2">
+        <% donations.forEach(d => { %>
+          <div class="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5">
+            <div>
+              <span class="text-gray-300 text-sm"><%= d.server_ip || '等待连接' %></span>
+              <span class="text-gray-600 text-xs ml-2"><%= d.region || '' %></span>
+            </div>
+            <span class="text-xs px-2 py-1 rounded-full
+              <% if (d.status === 'online') { %>bg-green-500/20 text-green-400<% } else if (d.status === 'pending') { %>bg-amber-500/20 text-amber-400<% } else if (d.status === 'rejected') { %>bg-red-500/20 text-red-400<% } else { %>bg-gray-500/20 text-gray-400<% } %>
+            ">
+              <% if (d.status === 'online') { %>✅ 在线
+              <% } else if (d.status === 'pending') { %>⏳ 等待
+              <% } else if (d.status === 'rejected') { %>❌ 拒绝
+              <% } else { %>⚫ 离线<% } %>
+            </span>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- 捐赠者荣誉 -->
+    <% if (donors.length > 0) { %>
+    <div class="glass rounded-2xl p-6 space-y-4">
+      <h2 class="text-white font-semibold">🏆 捐赠者荣誉</h2>
+      <div class="space-y-2">
+        <% donors.forEach((d, i) => { %>
+          <div class="flex items-center justify-between p-3 rounded-xl bg-white/[0.02]">
+            <div class="flex items-center gap-3">
+              <span class="text-lg"><%= i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '⭐' %></span>
+              <span class="text-gray-300 text-sm"><%= d.name || d.username %></span>
+            </div>
+            <span class="text-rose-400 text-sm font-medium"><%= d.count %> 个节点</span>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+    <% } %>
+
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="text-center py-6 text-gray-600 text-xs">由 🍑 蜜桃酱 AI 无人值守运维</footer>
+
+  <script nonce="<%= nonce %>">
+    function copyCmd() {
+      const cmd = document.getElementById('install-cmd').textContent;
+      navigator.clipboard.writeText(cmd).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = '已复制 ✓';
+        setTimeout(() => btn.textContent = '复制', 2000);
+      });
+    }
+    function generateToken() {
+      const btn = document.getElementById('gen-btn');
+      btn.disabled = true;
+      btn.textContent = '生成中...';
+      fetch('/donate/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) {
+            location.reload();
+          } else {
+            btn.textContent = '生成失败，重试';
+            btn.disabled = false;
+          }
+        })
+        .catch(() => { btn.textContent = '网络错误，重试'; btn.disabled = false; });
+    }
+  </script>
+</body>
+</html>

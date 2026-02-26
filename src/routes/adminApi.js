@@ -25,6 +25,7 @@ router.use('/', require('./admin/adminAgents'));
 router.use('/', require('./admin/adminSettings'));
 router.use('/', require('./admin/adminTraffic'));
 router.use('/', require('./admin/adminBackup'));
+router.use('/', require('./admin/adminDonations'));
 
 module.exports = router;
 module.exports.parseIntId = parseIntId;

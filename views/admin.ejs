@@ -60,6 +60,7 @@
         <button onclick="switchTab('aws')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="aws">☁️ AWS</button>
         <button onclick="switchTab('settings')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="settings">⚙️ 设置</button>
         <button onclick="switchTab('backup')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="backup">💾 备份</button>
+        <button onclick="switchTab('donations')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="donations">🎁 捐赠</button>
         <!-- 说明 tab 已移除 -->
       </div>
       <div class="tab-fade-right pointer-events-none absolute right-0 top-0 bottom-0 w-12 rounded-r-2xl" style="background:linear-gradient(to right, transparent, rgba(15,11,30,0.95))"></div>
@@ -75,6 +76,7 @@
     <%- include('partials/admin-diary') %>
     <!-- 说明 tab 已移至项目文档 -->
     <%- include('partials/admin-backup') %>
+    <%- include('partials/admin-donations') %>
   </main>
 
   <style nonce="<%= nonce %>">

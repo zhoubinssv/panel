@@ -174,8 +174,34 @@ function handleMessage(ws, msg) {
 function handleAuth(ws, msg) {
   const { token, nodeId, version, capabilities } = msg;
 
-  if (!token || !nodeId) {
-    return ws.close(4004, '缺少 token 或 nodeId');
+  if (!token) {
+    return ws.close(4004, '缺少 token');
+  }
+
+  // ─── 捐赠节点认证 ───
+  if (token.startsWith('donate-')) {
+    const d = db.getDb();
+    const donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
+    if (!donation) {
+      return ws.close(4005, '无效的捐赠令牌');
+    }
+    // 更新捐赠记录的 IP
+    const ip = ws._agentState.ip;
+    d.prepare("UPDATE node_donations SET server_ip = ?, status = 'pending' WHERE id = ?").run(ip, donation.id);
+    clearTimeout(ws._authTimer);
+    ws._agentState.authenticated = true;
+    ws._agentState.nodeId = `donate-${donation.id}`;
+    ws._agentState.isDonation = true;
+    ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已连接，等待管理员审核' }));
+    console.log(`[Agent-WS] 捐赠节点连接 from ${ip}, 用户#${donation.user_id}, 令牌: ${token}`);
+    db.addAuditLog(donation.user_id, 'donate_connect', `捐赠节点连接: IP ${ip}`, ip);
+    notify.donateConnect && notify.donateConnect(ip, donation.user_id);
+    return;
+  }
+
+  // ─── 正常节点认证 ───
+  if (!nodeId) {
+    return ws.close(4004, '缺少 nodeId');
   }
 
   // 验证节点存在

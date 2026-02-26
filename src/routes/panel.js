@@ -471,4 +471,59 @@ router.get('/api/traffic-detail', requireAuth, (req, res) => {
 });
 
 // Sprint 6: 节点延迟测试 API（TCP ping）
+
+// ─── 捐赠节点模块 ───
+const { v4: uuidv4 } = require('uuid');
+const path = require('path');
+const fs = require('fs');
+
+// 捐赠安装脚本下载 agent.js
+router.get('/donate/agent.js', (req, res) => {
+  const agentPath = path.join(__dirname, '..', '..', 'node-agent', 'agent.js');
+  if (fs.existsSync(agentPath)) {
+    res.type('application/javascript').sendFile(agentPath);
+  } else {
+    res.status(404).send('agent not found');
+  }
+});
+
+router.get('/donate', requireAuth, (req, res) => {
+  const user = req.user;
+  const d = db.getDb();
+
+  // 获取用户的捐赠记录
+  const donations = d.prepare('SELECT * FROM node_donations WHERE user_id = ? ORDER BY created_at DESC').all(user.id);
+
+  // 生成或获取用户的捐赠 token
+  let activeDonation = donations.find(dn => dn.status === 'pending');
+  let donateToken;
+  if (activeDonation) {
+    donateToken = activeDonation.token;
+  } else {
+    donateToken = 'donate-' + uuidv4();
+  }
+
+  const wsUrl = process.env.AGENT_WS_URL || 'wss://vip.vip.sd/ws/agent';
+  const installCmd = `bash <(curl -sL https://vip.vip.sd/donate/install.sh) ${wsUrl} ${donateToken}`;
+
+  // 捐赠者排行榜
+  const donors = d.prepare(`
+    SELECT u.username, u.name, COUNT(nd.id) as count
+    FROM node_donations nd JOIN users u ON nd.user_id = u.id
+    WHERE nd.status = 'online'
+    GROUP BY nd.user_id ORDER BY count DESC LIMIT 10
+  `).all();
+
+  res.render('donate', { user, donations, donateToken, installCmd, donors });
+});
+
+router.post('/donate/generate', requireAuth, (req, res) => {
+  const user = req.user;
+  const d = db.getDb();
+  const token = 'donate-' + uuidv4();
+  d.prepare('INSERT INTO node_donations (user_id, token) VALUES (?, ?)').run(user.id, token);
+  db.addAuditLog(user.id, 'donate_generate', `用户 ${user.username} 生成捐赠令牌`, '');
+  res.json({ ok: true, token });
+});
+
 module.exports = router;
