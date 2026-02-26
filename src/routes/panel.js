@@ -494,11 +494,14 @@ router.get('/donate', requireAuth, (req, res) => {
   // 获取用户的捐赠记录
   const donations = d.prepare("SELECT * FROM node_donations WHERE user_id = ? AND status IN ('pending', 'online') ORDER BY created_at DESC").all(user.id);
 
-  // 生成或获取用户的捐赠 token（从 donate_tokens 表）
-  const tokenRecord = d.prepare('SELECT * FROM donate_tokens WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(user.id);
+  // 生成或获取用户的捐赠 token
+  // 如果已有 token 且未被使用（无 node_donations 记录），复用它
+  // 如果已有 token 但已被使用，生成新的
+  const tokenRecords = d.prepare('SELECT * FROM donate_tokens WHERE user_id = ? ORDER BY created_at DESC').all(user.id);
   let donateToken;
-  if (tokenRecord) {
-    donateToken = tokenRecord.token;
+  const unusedToken = tokenRecords.find(t => !d.prepare('SELECT id FROM node_donations WHERE token = ?').get(t.token));
+  if (unusedToken) {
+    donateToken = unusedToken.token;
   } else {
     donateToken = 'donate-' + uuidv4();
     d.prepare("INSERT INTO donate_tokens (user_id, token, created_at) VALUES (?, ?, datetime('now', 'localtime'))").run(user.id, donateToken);
