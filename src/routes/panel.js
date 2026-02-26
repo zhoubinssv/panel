@@ -95,8 +95,12 @@ function nextTokenResetAtMs(user, now = new Date()) {
   const [y,m,d] = String(last).split('-').map(v => parseInt(v));
   if (!y || !m || !d) return nextUuidResetAtMs(now);
   const last3 = shanghaiToUtcMs(y, m, d, 3, 0, 0);
-  const next = new Date(last3);
+  let next = new Date(last3);
   next.setUTCDate(next.getUTCDate() + interval);
+  // 如果算出来的时间已过期，往前推到下一个周期
+  while (next.getTime() < now.getTime()) {
+    next.setUTCDate(next.getUTCDate() + interval);
+  }
   return next.getTime();
 }
 
