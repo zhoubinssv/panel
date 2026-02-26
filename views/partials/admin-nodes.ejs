@@ -258,22 +258,22 @@ function updateDeployHint() {
 
   if (vless && ss) {
     modeText.textContent = '⚡ 双协议（VLESS IPv4 + SS IPv6）';
-    modeText.className = 'text-amber-400';
-    btn.className = btn.className.replace(/bg-\w+-600/g, 'bg-amber-600').replace(/hover:bg-\w+-500/g, 'hover:bg-amber-500');
+    modeText.style.color = '#fbbf24';
+    btn.style.background = '#d97706';
     btn.textContent = '⚡ 双协议部署';
   } else if (vless) {
     modeText.textContent = '仅 VLESS（IPv4）';
-    modeText.className = 'text-rose-400';
-    btn.className = btn.className.replace(/bg-\w+-600/g, 'bg-rose-600').replace(/hover:bg-\w+-500/g, 'hover:bg-rose-500');
+    modeText.style.color = '#fb7185';
+    btn.style.background = '#e11d48';
     btn.textContent = '🚀 部署 VLESS';
   } else if (ss) {
     modeText.textContent = '仅 Shadowsocks（IPv6）';
-    modeText.className = 'text-cyan-400';
-    btn.className = btn.className.replace(/bg-\w+-600/g, 'bg-cyan-600').replace(/hover:bg-\w+-500/g, 'hover:bg-cyan-500');
+    modeText.style.color = '#22d3ee';
+    btn.style.background = '#0891b2';
     btn.textContent = '🚀 部署 SS';
   } else {
     modeText.textContent = '⚠️ 请至少选择一个协议';
-    modeText.className = 'text-red-400';
+    modeText.style.color = '#f87171';
   }
 }
 
