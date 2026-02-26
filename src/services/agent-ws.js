@@ -80,14 +80,25 @@ function init(server) {
         markDisconnected(nodeId);
         agents.delete(nodeId);
         console.log(`[Agent-WS] 节点 #${nodeId} 断开连接`);
-        // 记录系统日志 + 触发下线通知
-        try {
-          const node = db.getNodeById(nodeId);
-          if (node) {
-            db.addAuditLog(null, 'agent_offline', `节点 Agent 断开: ${node.name}`, 'system');
-            notify.nodeDown(`${node.name} (Agent 断开)`);
+        // 延迟检测：等 30 秒看 Agent 是否重连，避免短暂抖动触发通知
+        setTimeout(() => {
+          if (!agents.has(nodeId)) {
+            // 30 秒后仍未重连 → 真的掉了，更新状态 + 通知
+            try {
+              const node = db.getNodeById(nodeId);
+              if (node && node.is_active) {
+                db.updateNode(nodeId, {
+                  is_active: 0,
+                  remark: '🔴 Agent 断开连接',
+                  last_check: new Date().toISOString().replace('T', ' ').substring(0, 19),
+                });
+                db.addAuditLog(null, 'agent_offline', `节点 Agent 断开: ${node.name}`, 'system');
+                notify.nodeDown(`${node.name} (Agent 断开)`);
+              }
+            } catch {}
           }
-        } catch {}
+          // 如果已重连则什么都不做
+        }, 30000);
       }
     });
 
@@ -214,11 +225,8 @@ function handleAuth(ws, msg) {
   ws.send(JSON.stringify({ type: 'auth_ok' }));
   console.log(`[Agent-WS] 节点 #${nodeId} (${node.name}) 认证成功`);
 
-  // 记录系统日志 + 触发上线通知
+  // 记录系统日志（Agent 上线不再单独发 TG 通知，由 report 上报恢复时通知）
   db.addAuditLog(null, 'agent_online', `节点 Agent 上线: ${node.name} (${ws._agentState.ip})`, 'system');
-  try {
-    notify.nodeUp(`${node.name} (Agent 连接)`);
-  } catch {}
 }
 
 /**
