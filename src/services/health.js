@@ -108,7 +108,7 @@ function updateOnlineCache(nodeId, trafficRecords) {
  */
 function updateFromAgentReport(nodeId, reportData) {
   const { xrayAlive, cnReachable, trafficRecords } = reportData;
-  const now = new Date().toISOString();
+  const now = new Date(Date.now() + 8 * 3600000).toISOString();
   const node = db.getNodeById(nodeId);
   if (!node) return;
 

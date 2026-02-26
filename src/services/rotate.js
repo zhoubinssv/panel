@@ -40,7 +40,7 @@ async function rotateAll() {
     const users = db.getAllUsers();
     for (const user of users) { db.resetSubToken(user.id); }
     tokenCount = users.length;
-    db.setSetting('last_token_rotate', new Date().toISOString().slice(0, 10));
+    db.setSetting('last_token_rotate', new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10));
     console.log(`[轮换] 已重置 ${tokenCount} 个用户订阅 token（每7天）`);
   } else {
     console.log(`[轮换] 订阅 token 跳过（距上次 ${daysSince} 天，7天一换）`);

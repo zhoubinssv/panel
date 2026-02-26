@@ -40,7 +40,7 @@ function markDisconnected(nodeId) {
   const metrics = getOrCreateMetrics(nodeId);
   metrics.disconnectCount += 1;
   metrics.consecutiveReconnects += 1;
-  metrics.lastDisconnectAt = new Date().toISOString();
+  metrics.lastDisconnectAt = new Date(Date.now() + 8 * 3600000).toISOString();
 }
 
 /**
@@ -90,7 +90,7 @@ function init(server) {
                 db.updateNode(nodeId, {
                   is_active: 0,
                   remark: '🔴 断开',
-                  last_check: new Date().toISOString().replace('T', ' ').substring(0, 19),
+                  last_check: new Date(Date.now() + 8 * 3600000).toISOString().replace('T', ' ').substring(0, 19),
                 });
                 db.addAuditLog(null, 'agent_offline', `节点 Agent 断开: ${node.name}`, 'system');
                 notify.nodeDown(`${node.name} (Agent 断开)`);
@@ -239,7 +239,7 @@ function handleAuth(ws, msg) {
 
   const metrics = getOrCreateMetrics(nodeId);
   if (metrics.consecutiveReconnects > 0) {
-    metrics.lastReconnectAt = new Date().toISOString();
+    metrics.lastReconnectAt = new Date(Date.now() + 8 * 3600000).toISOString();
     metrics.consecutiveReconnects = 0;
   }
 
@@ -248,7 +248,7 @@ function handleAuth(ws, msg) {
     nodeId,
     nodeName: node.name,
     ip: ws._agentState.ip,
-    connectedAt: new Date().toISOString(),
+    connectedAt: new Date(Date.now() + 8 * 3600000).toISOString(),
     lastReport: null,
     reportData: null,
     version: version || null,
@@ -273,7 +273,7 @@ function handleReport(ws, msg) {
   if (!agent) return;
 
   const { xrayAlive, cnReachable, loadAvg, memUsage, diskUsage, trafficRecords, version, capabilities, reconnectMetrics } = msg;
-  const now = new Date().toISOString();
+  const now = new Date(Date.now() + 8 * 3600000).toISOString();
 
   // 更新 agent 连接池中的上报数据（供 getAgentReport 查询）
   const reportData = { xrayAlive, cnReachable, loadAvg, memUsage, diskUsage, reportedAt: now };
