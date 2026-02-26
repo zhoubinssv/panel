@@ -50,7 +50,7 @@
     let _userSortBy = 'total_traffic';
     let _userSortDir = 'DESC';
 
-    function sortUsers(col) {
+    window.sortUsers = function(col) {
       if (_userSortBy === col) {
         _userSortDir = _userSortDir === 'DESC' ? 'ASC' : 'DESC';
       } else {
