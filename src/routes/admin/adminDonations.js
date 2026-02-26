@@ -23,7 +23,6 @@ router.post('/donations/:id/approve', async (req, res) => {
   if (donation.status === 'online') return res.json({ ok: false, error: '已审核通过' });
 
   const { name, group_name } = req.body;
-  const nodeName = name || `捐赠-${donation.server_ip}`;
 
   try {
     // 检测地区
@@ -34,6 +33,13 @@ router.post('/donations/:id/approve', async (req, res) => {
         region = await detectRegion(donation.server_ip);
       } catch {}
     }
+
+    // 查捐赠者用户名
+    const donor = d.prepare('SELECT username FROM users WHERE id = ?').get(donation.user_id);
+    const donorName = donor ? donor.username : `用户${donation.user_id}`;
+
+    // 自动生成节点名：国旗+城市+用户名+捐赠
+    const nodeName = name || (region ? `${region}-${donorName}捐赠` : `${donorName}捐赠`);
 
     // 创建节点记录
     const agentToken = uuidv4();

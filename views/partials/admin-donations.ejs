@@ -51,7 +51,7 @@ function loadDonations() {
 }
 
 async function approveDonation(id) {
-  const name = await _prompt('节点名称（留空自动生成）', { placeholder: '如：捐赠-Tokyo' });
+  const name = await _prompt('节点名称（留空自动生成）', { placeholder: '留空自动生成：地区-用户名捐赠' });
   if (name === null) return;
   const group = await _prompt('分组名称', { value: '捐赠节点', placeholder: '捐赠节点' });
   if (group === null) return;
