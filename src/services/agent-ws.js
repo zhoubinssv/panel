@@ -206,9 +206,32 @@ function handleAuth(ws, msg) {
 
     if (donation.status === 'online' && donation.node_id) {
       // 已审核通过，绑定到实际节点
-      ws._agentState.nodeId = donation.node_id;
+      const donateNodeId = donation.node_id;
+      ws._agentState.nodeId = donateNodeId;
+
+      // 踢掉旧连接
+      const oldDonate = agents.get(donateNodeId);
+      if (oldDonate && oldDonate.ws !== ws) {
+        try { oldDonate.ws.close(4007, '被新连接替代'); } catch {}
+      }
+
+      // 注册到 agents Map，使 sendCommand 可用
+      const donateNode = db.getNodeById(donateNodeId);
+      agents.set(donateNodeId, {
+        ws,
+        nodeId: donateNodeId,
+        nodeName: donateNode ? donateNode.name : `捐赠#${donation.id}`,
+        ip,
+        connectedAt: new Date(Date.now() + 8 * 3600000).toISOString(),
+        lastReport: null,
+        reportData: null,
+        version: version || null,
+        capabilities: capabilities || null,
+        _pongReceived: true,
+      });
+
       ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已上线' }));
-      console.log(`[Agent-WS] 捐赠节点重连 node#${donation.node_id} from ${ip}`);
+      console.log(`[Agent-WS] 捐赠节点重连 node#${donateNodeId} from ${ip}`);
     } else {
       ws._agentState.nodeId = `donate-${donation.id}`;
       ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已连接，等待管理员审核' }));

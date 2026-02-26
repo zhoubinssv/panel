@@ -67,6 +67,26 @@ router.post('/donations/:id/approve', async (req, res) => {
 
     db.addAuditLog(null, 'donate_approve', `审核通过捐赠节点: ${nodeName} (${donation.server_ip}), 捐赠者: ${donorName}`, '');
 
+    // 生成 Reality 密钥并推送 Xray 配置
+    try {
+      const crypto = require('crypto');
+      const { publicKey, privateKey } = crypto.generateKeyPairSync('x25519');
+      const privRaw = privateKey.export({ type: 'pkcs8', format: 'der' }).slice(-32);
+      const pubRaw = publicKey.export({ type: 'spki', format: 'der' }).slice(-32);
+      const realityPrivateKey = privRaw.toString('base64url');
+      const realityPublicKey = pubRaw.toString('base64url');
+      const realityShortId = crypto.randomBytes(4).toString('hex');
+      db.updateNode(nodeId, { reality_private_key: realityPrivateKey, reality_public_key: realityPublicKey, reality_short_id: realityShortId, sni: 'www.microsoft.com' });
+
+      const deploy = require('../../services/deploy');
+      const newNode = db.getNodeById(nodeId);
+      const syncOk = await deploy.syncNodeConfig(newNode, db);
+      console.log(`[捐赠审核] 配置推送 ${syncOk ? '成功' : '失败'}: ${nodeName}`);
+    } catch (syncErr) {
+      console.error(`[捐赠审核] 配置推送异常: ${syncErr.message}`);
+      // 不影响审核结果，后续可手动sync
+    }
+
     res.json({ ok: true, nodeId, agentToken });
   } catch (e) {
     console.error('[捐赠审核] 错误:', e);
