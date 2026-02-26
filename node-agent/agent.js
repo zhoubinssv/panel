@@ -50,6 +50,7 @@ const DEFAULT_EXEC_WHITELIST = [
   'ps ',
   'top -bn1',
   'ip addr',
+  'ip -6 addr',
   'ip route',
   'ping ',
   'curl ',

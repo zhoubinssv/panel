@@ -53,6 +53,24 @@
           ✅ Agent 已连接，等待管理员审核
         </div>
       <% } %>
+
+      <!-- 协议选择 -->
+      <div class="space-y-2">
+        <p class="text-gray-400 text-xs">选择部署协议：</p>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="setProtocol('vless')" id="proto-vless" class="proto-btn proto-active text-xs px-4 py-2 rounded-xl transition font-medium">
+            🌐 VLESS (IPv4)
+          </button>
+          <button onclick="setProtocol('ss')" id="proto-ss" class="proto-btn text-xs px-4 py-2 rounded-xl transition font-medium">
+            🔮 Shadowsocks (IPv6)
+          </button>
+          <button onclick="setProtocol('dual')" id="proto-dual" class="proto-btn text-xs px-4 py-2 rounded-xl transition font-medium">
+            ⚡ 双协议 (IPv4+IPv6)
+          </button>
+        </div>
+        <p class="text-gray-600 text-[11px]" id="proto-hint">VLESS Reality 协议，使用服务器的 IPv4 地址</p>
+      </div>
+
       <pre class="bg-black/40 rounded-xl p-4 text-green-400 text-xs overflow-x-auto whitespace-pre-wrap break-all select-all" id="install-cmd"><%= installCmd %></pre>
       <div class="flex items-center gap-3 mt-3">
         <button onclick="copyCmd()" class="text-xs px-4 py-2 rounded-lg bg-rose-500 text-white hover:bg-rose-400 transition shadow-lg font-medium" id="copy-btn">📋 复制命令</button>
@@ -70,6 +88,8 @@
             <div>
               <span class="text-gray-300 text-sm"><%= d.server_ip || '等待连接' %></span>
               <span class="text-gray-400 text-xs ml-2"><%= d.region || '' %></span>
+              <% const _protoMap = { vless: '🌐 VLESS', ss: '🔮 SS', dual: '⚡ 双协议' }; %>
+              <span class="text-gray-500 text-[11px] ml-1"><%= _protoMap[d.protocol_choice] || '' %></span>
             </div>
             <span class="text-xs px-2 py-1 rounded-full
               <% if (d.status === 'online') { %>bg-green-500/20 text-green-400<% } else if (d.status === 'pending') { %>bg-amber-500/20 text-amber-400<% } else if (d.status === 'rejected') { %>bg-red-500/20 text-red-400<% } else { %>bg-gray-500/20 text-gray-400<% } %>
@@ -108,13 +128,38 @@
   <!-- 页脚 -->
   <footer class="text-center py-6 text-gray-600 text-xs">由 🍑 蜜桃酱 AI 无人值守运维</footer>
 
+  <style nonce="<%= nonce %>">
+    .proto-btn { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); color: #9ca3af; }
+    .proto-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    .proto-active { background: rgba(244,63,94,0.2) !important; border-color: rgba(244,63,94,0.4) !important; color: #fff !important; }
+  </style>
   <script nonce="<%= nonce %>">
+    const protoHints = {
+      vless: 'VLESS Reality 协议，使用服务器的 IPv4 地址',
+      ss: 'Shadowsocks 协议，需要服务器有 IPv6 地址',
+      dual: '同时部署 VLESS (IPv4) + Shadowsocks (IPv6)，需要服务器同时有 IPv4 和 IPv6'
+    };
+    let currentProto = '<%= protocolChoice || "vless" %>';
+
+    function setProtocol(proto) {
+      currentProto = proto;
+      document.querySelectorAll('.proto-btn').forEach(b => b.classList.remove('proto-active'));
+      document.getElementById('proto-' + proto).classList.add('proto-active');
+      document.getElementById('proto-hint').textContent = protoHints[proto];
+      // 保存选择到后端
+      fetch('/donate/set-protocol', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ protocol: proto, token: '<%= donateToken %>' })
+      });
+    }
+
     function copyCmd() {
       const cmd = document.getElementById('install-cmd').textContent;
       navigator.clipboard.writeText(cmd).then(() => {
         const btn = document.getElementById('copy-btn');
         btn.textContent = '已复制 ✓';
-        setTimeout(() => btn.textContent = '复制', 2000);
+        setTimeout(() => btn.textContent = '📋 复制命令', 2000);
       });
     }
     function generateToken() {
@@ -133,6 +178,9 @@
         })
         .catch(() => { btn.textContent = '网络错误，重试'; btn.disabled = false; });
     }
+
+    // 页面加载时恢复选择
+    if (currentProto !== 'vless') setProtocol(currentProto);
   </script>
 </body>
 </html>

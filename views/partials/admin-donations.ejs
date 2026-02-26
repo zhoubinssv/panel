@@ -28,6 +28,8 @@ function loadDonations() {
       };
       const st = statusMap[dn.status] || { text: dn.status, cls: 'text-gray-400' };
       const ip = dn.server_ip || '未知';
+      const protoMap = { vless: '🌐 VLESS', ss: '🔮 SS(IPv6)', dual: '⚡ 双协议' };
+      const protoLabel = protoMap[dn.protocol_choice] || '🌐 VLESS';
       const user = dn.user_name || dn.username || '未知';
       const time = dn.created_at || '';
       const actions = dn.status === 'pending' || dn.status === 'offline'
@@ -42,7 +44,7 @@ function loadDonations() {
             <span class="text-white text-sm font-medium">${ip}</span>
             <span class="text-xs ${st.cls}">${st.text}</span>
           </div>
-          <div class="text-xs text-gray-500">捐赠者: ${user} · ${dn.region || '未知地区'} · ${time}</div>
+          <div class="text-xs text-gray-500">捐赠者: ${user} · ${protoLabel} · ${dn.region || '未知地区'} · ${time}</div>
         </div>
         <div class="flex gap-2 shrink-0">${actions}</div>
       </div>`;

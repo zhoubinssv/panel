@@ -518,7 +518,22 @@ router.get('/donate', requireAuth, (req, res) => {
     GROUP BY nd.user_id ORDER BY count DESC LIMIT 10
   `).all();
 
-  res.render('donate', { user, donations, donateToken, installCmd, donors });
+  // 读取当前token的协议选择
+  const tokenRow = d.prepare('SELECT protocol_choice FROM donate_tokens WHERE token = ?').get(donateToken);
+  const protocolChoice = tokenRow?.protocol_choice || 'vless';
+
+  res.render('donate', { user, donations, donateToken, installCmd, donors, protocolChoice });
+});
+
+// 保存协议选择
+router.post('/donate/set-protocol', requireAuth, (req, res) => {
+  const { protocol, token } = req.body;
+  if (!['vless', 'ss', 'dual'].includes(protocol)) return res.json({ ok: false, error: '无效协议' });
+  const d = db.getDb();
+  d.prepare('UPDATE donate_tokens SET protocol_choice = ? WHERE token = ? AND user_id = ?').run(protocol, token, req.user.id);
+  // 同步更新到 node_donations（如果已有连接记录）
+  d.prepare('UPDATE node_donations SET protocol_choice = ? WHERE token = ? AND user_id = ?').run(protocol, token, req.user.id);
+  res.json({ ok: true });
 });
 
 router.post('/donate/generate', requireAuth, (req, res) => {

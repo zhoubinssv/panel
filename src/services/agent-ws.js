@@ -190,7 +190,7 @@ function handleAuth(ws, msg) {
       if (!tokenRecord) {
         return ws.close(4005, '无效的捐赠令牌');
       }
-      d.prepare("INSERT INTO node_donations (user_id, token, server_ip, status) VALUES (?, ?, ?, 'pending')").run(tokenRecord.user_id, token, ip);
+      d.prepare("INSERT INTO node_donations (user_id, token, server_ip, status, protocol_choice) VALUES (?, ?, ?, 'pending', ?)").run(tokenRecord.user_id, token, ip, tokenRecord.protocol_choice || 'vless');
       donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
     } else {
       // 更新 IP，已审核通过的不改状态
