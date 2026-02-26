@@ -7,7 +7,7 @@ function init(deps) {
 
 function recordTraffic(userId, nodeId, uplink, downlink) {
   _getDb().prepare('INSERT INTO traffic (user_id, node_id, uplink, downlink) VALUES (?, ?, ?, ?)').run(userId, nodeId, uplink, downlink);
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date(Date.now() + 8 * 3600000).toISOString().split('T')[0]; // Asia/Shanghai
   _getDb().prepare(`
     INSERT INTO traffic_daily (user_id, node_id, date, uplink, downlink)
     VALUES (?, ?, ?, ?, ?)

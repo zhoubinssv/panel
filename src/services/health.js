@@ -46,7 +46,7 @@ function saveTrafficRecords(nodeId, records) {
 // 流量超标检测（10GB/天）
 function checkTrafficExceed() {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); // Asia/Shanghai
     const todayTraffic = db.getDb().prepare(`
       SELECT t.user_id, u.username, SUM(t.uplink) as total_up, SUM(t.downlink) as total_down
       FROM traffic_daily t JOIN users u ON t.user_id = u.id
