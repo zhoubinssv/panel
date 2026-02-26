@@ -6,13 +6,13 @@
   </div>
 
   <div id="donations-list" class="space-y-2">
-    <p class="text-gray-500 text-sm">加载中...</p>
+    <p class="text-gray-500 text-sm">点击「🎁 捐赠」标签加载数据</p>
   </div>
 </div>
 
 <script nonce="<%= nonce %>">
 function loadDonations() {
-  fetch('/admin/api/donations').then(r => r.json()).then(d => {
+  fetch('/admin/api/donations', { headers: { 'X-CSRF-Token': _csrf } }).then(r => r.json()).then(d => {
     if (!d.ok) return;
     const list = document.getElementById('donations-list');
     const count = document.getElementById('donations-count');
@@ -21,13 +21,13 @@ function loadDonations() {
     if (!items.length) { list.innerHTML = '<p class="text-gray-500 text-sm">暂无捐赠记录</p>'; return; }
     list.innerHTML = items.map(dn => {
       const statusMap = {
-        pending: { text: '⏳ 等待连接', cls: 'text-amber-400' },
+        pending: { text: '⏳ 待审核', cls: 'text-amber-400' },
         online: { text: '✅ 在线', cls: 'text-green-400' },
         offline: { text: '⚫ 离线', cls: 'text-gray-400' },
         rejected: { text: '❌ 已拒绝', cls: 'text-red-400' }
       };
       const st = statusMap[dn.status] || { text: dn.status, cls: 'text-gray-400' };
-      const ip = dn.server_ip || '未连接';
+      const ip = dn.server_ip || '未知';
       const user = dn.user_name || dn.username || '未知';
       const time = dn.created_at || '';
       const actions = dn.status === 'pending' || dn.status === 'offline'
@@ -50,44 +50,42 @@ function loadDonations() {
   });
 }
 
-function approveDonation(id) {
-  const name = prompt('节点名称（留空自动生成）:', '');
-  const group = prompt('分组名称:', '捐赠节点');
+async function approveDonation(id) {
+  const name = await _prompt('节点名称（留空自动生成）', { placeholder: '如：捐赠-Tokyo' });
+  if (name === null) return;
+  const group = await _prompt('分组名称', { value: '捐赠节点', placeholder: '捐赠节点' });
+  if (group === null) return;
   fetch('/admin/api/donations/' + id + '/approve', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': _csrf },
     body: JSON.stringify({ name: name || '', group_name: group || '捐赠节点' })
   }).then(r => r.json()).then(d => {
     if (d.ok) { showToast('✅ 已通过，节点已创建'); loadDonations(); }
-    else showToast('❌ ' + (d.error || '操作失败'), 'error');
+    else showToast('❌ ' + (d.error || '操作失败'), 3000);
   });
 }
 
-function rejectDonation(id) {
-  if (!confirm('确定拒绝该捐赠？')) return;
-  fetch('/admin/api/donations/' + id + '/reject', { method: 'POST' })
-    .then(r => r.json()).then(d => {
-      if (d.ok) { showToast('已拒绝'); loadDonations(); }
-      else showToast('❌ ' + (d.error || '操作失败'), 'error');
-    });
-}
-
-function deleteDonation(id) {
-  if (!confirm('确定删除该记录？')) return;
-  fetch('/admin/api/donations/' + id, { method: 'DELETE' })
-    .then(r => r.json()).then(d => {
-      if (d.ok) { showToast('已删除'); loadDonations(); }
-      else showToast('❌ 操作失败', 'error');
-    });
-}
-
-// 切换到该tab时自动加载
-document.addEventListener('DOMContentLoaded', () => {
-  const observer = new MutationObserver(() => {
-    const panel = document.querySelector('[data-tab="donations"]');
-    if (panel && !panel.classList.contains('hidden')) loadDonations();
+async function rejectDonation(id) {
+  const ok = await _confirm('确定拒绝该捐赠？');
+  if (!ok) return;
+  fetch('/admin/api/donations/' + id + '/reject', {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': _csrf }
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('已拒绝'); loadDonations(); }
+    else showToast('❌ ' + (d.error || '操作失败'), 3000);
   });
-  const panel = document.querySelector('[data-tab="donations"]');
-  if (panel) observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
-});
+}
+
+async function deleteDonation(id) {
+  const ok = await _confirm('确定删除该记录？');
+  if (!ok) return;
+  fetch('/admin/api/donations/' + id, {
+    method: 'DELETE',
+    headers: { 'X-CSRF-Token': _csrf }
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { showToast('已删除'); loadDonations(); }
+    else showToast('❌ 操作失败', 3000);
+  });
+}
 </script>
