@@ -15,10 +15,11 @@ function decryptNode(node) {
   return node;
 }
 
-function getAllNodes(activeOnly = false) {
+function getAllNodes(activeOnly = false, includeDonation = true) {
+  const donationFilter = includeDonation ? '' : ' AND COALESCE(is_donation, 0) = 0';
   const rows = activeOnly
-    ? _getDb().prepare('SELECT * FROM nodes WHERE is_active = 1 ORDER BY region, name').all()
-    : _getDb().prepare('SELECT * FROM nodes ORDER BY is_active DESC, region, name').all();
+    ? _getDb().prepare('SELECT * FROM nodes WHERE is_active = 1' + donationFilter + ' ORDER BY region, name').all()
+    : _getDb().prepare('SELECT * FROM nodes WHERE 1=1' + donationFilter + ' ORDER BY is_active DESC, region, name').all();
   return rows.map(decryptNode);
 }
 

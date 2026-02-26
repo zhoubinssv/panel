@@ -14,7 +14,7 @@ router.get('/', (req, res) => {
   });
   const onlineAgents = new Set(agentWs.getConnectedAgents().map(a => a.nodeId));
   // 同机 SS 节点也标记为 Agent 在线（共享同一个 xray + Agent）
-  const allNodes = db.getAllNodes();
+  const allNodes = db.getAllNodes(false, false); // 排除捐赠节点
   const onlineHosts = new Set();
   for (const n of allNodes) {
     if (onlineAgents.has(n.id)) onlineHosts.add(n.ssh_host || n.host);
@@ -36,7 +36,7 @@ router.get('/', (req, res) => {
 
   res.render('admin', {
     users: [],
-    nodes: db.getAllNodes(),
+    nodes: db.getAllNodes(false, false),
     onlineAgents,
     nodeOnlineCount,
     whitelist: db.getWhitelist(),

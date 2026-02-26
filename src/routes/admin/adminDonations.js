@@ -7,9 +7,10 @@ const { v4: uuidv4 } = require('uuid');
 router.get('/donations', (req, res) => {
   const d = db.getDb();
   const donations = d.prepare(`
-    SELECT nd.*, u.username, u.name as user_name
+    SELECT nd.*, u.username, u.name as user_name, n.name as node_name, n.is_active as node_active
     FROM node_donations nd
     JOIN users u ON nd.user_id = u.id
+    LEFT JOIN nodes n ON nd.node_id = n.id
     ORDER BY nd.created_at DESC
   `).all();
   res.json({ ok: true, donations });
@@ -45,8 +46,8 @@ router.post('/donations/:id/approve', async (req, res) => {
     const agentToken = uuidv4();
     const nodeUuid = uuidv4();
     const nodeResult = d.prepare(`
-      INSERT INTO nodes (name, host, port, uuid, is_active, agent_token, group_name, remark)
-      VALUES (?, ?, 443, ?, 1, ?, ?, '🎁 捐赠节点')
+      INSERT INTO nodes (name, host, port, uuid, is_active, agent_token, group_name, remark, is_donation)
+      VALUES (?, ?, 443, ?, 1, ?, ?, '🎁 捐赠节点', 1)
     `).run(nodeName, donation.server_ip, nodeUuid, agentToken, group_name || '捐赠节点');
 
     const nodeId = nodeResult.lastInsertRowid;
