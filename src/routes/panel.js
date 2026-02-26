@@ -539,11 +539,13 @@ router.get('/donate', requireAuth, (req, res) => {
   const wsUrl = process.env.AGENT_WS_URL || 'wss://vip.vip.sd/ws/agent';
   const installCmd = `bash <(curl -sL https://vip.vip.sd/donate/install.sh) ${wsUrl} ${donateToken}`;
 
-  // 捐赠者排行榜
+  // 捐赠者排行榜（只统计在线节点）
   const donors = d.prepare(`
     SELECT u.username, u.name, COUNT(nd.id) as count
-    FROM node_donations nd JOIN users u ON nd.user_id = u.id
-    WHERE nd.status = 'online'
+    FROM node_donations nd 
+    JOIN users u ON nd.user_id = u.id
+    JOIN nodes n ON nd.node_id = n.id
+    WHERE nd.status = 'online' AND n.is_active = 1
     GROUP BY nd.user_id ORDER BY count DESC LIMIT 10
   `).all();
 
