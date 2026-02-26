@@ -5,7 +5,7 @@ function init(deps) {
 }
 
 function addDiagnosis(nodeId, diagInfo) {
-  return _getDb().prepare('INSERT INTO ops_diagnosis (node_id, diag_info) VALUES (?, ?)').run(nodeId, diagInfo);
+  return _getDb().prepare("INSERT INTO ops_diagnosis (node_id, diag_info, created_at) VALUES (?, ?, datetime('now', 'localtime'))").run(nodeId, diagInfo);
 }
 
 function updateDiagnosis(id, fields) {

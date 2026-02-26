@@ -6,7 +6,7 @@ function init(deps) {
 }
 
 function logSubAccess(userId, ip, ua) {
-  _getDb().prepare('INSERT INTO sub_access_log (user_id, ip, ua) VALUES (?, ?, ?)').run(userId, ip, ua || '');
+  _getDb().prepare("INSERT INTO sub_access_log (user_id, ip, ua, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))").run(userId, ip, ua || '');
   _getDb().prepare("DELETE FROM sub_access_log WHERE created_at < datetime('now', '-30 days')").run();
 }
 
