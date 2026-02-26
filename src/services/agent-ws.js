@@ -193,16 +193,28 @@ function handleAuth(ws, msg) {
       d.prepare("INSERT INTO node_donations (user_id, token, server_ip, status) VALUES (?, ?, ?, 'pending')").run(tokenRecord.user_id, token, ip);
       donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
     } else {
-      // 更新 IP
-      d.prepare("UPDATE node_donations SET server_ip = ?, status = 'pending' WHERE id = ?").run(ip, donation.id);
+      // 更新 IP，已审核通过的不改状态
+      if (donation.status === 'online') {
+        d.prepare("UPDATE node_donations SET server_ip = ? WHERE id = ?").run(ip, donation.id);
+      } else {
+        d.prepare("UPDATE node_donations SET server_ip = ?, status = 'pending' WHERE id = ?").run(ip, donation.id);
+      }
     }
     clearTimeout(ws._authTimer);
     ws._agentState.authenticated = true;
-    ws._agentState.nodeId = `donate-${donation.id}`;
     ws._agentState.isDonation = true;
-    ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已连接，等待管理员审核' }));
-    console.log(`[Agent-WS] 捐赠节点连接 from ${ip}, 用户#${donation.user_id}, 令牌: ${token}`);
-    db.addAuditLog(donation.user_id, 'donate_connect', `捐赠节点连接: IP ${ip}`, ip);
+
+    if (donation.status === 'online' && donation.node_id) {
+      // 已审核通过，绑定到实际节点
+      ws._agentState.nodeId = donation.node_id;
+      ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已上线' }));
+      console.log(`[Agent-WS] 捐赠节点重连 node#${donation.node_id} from ${ip}`);
+    } else {
+      ws._agentState.nodeId = `donate-${donation.id}`;
+      ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已连接，等待管理员审核' }));
+      console.log(`[Agent-WS] 捐赠节点连接 from ${ip}, 用户#${donation.user_id}, 令牌: ${token}`);
+      db.addAuditLog(donation.user_id, 'donate_connect', `捐赠节点连接: IP ${ip}`, ip);
+    }
     // 异步检测地区
     try {
       const { detectRegion } = require('./deploy');
