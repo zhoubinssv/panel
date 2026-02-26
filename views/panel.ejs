@@ -38,15 +38,15 @@
       </div>
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#8b5cf6">
         <p class="text-gray-500 text-xs mb-1">全站已用</p>
-        <p class="text-violet-400 text-lg font-bold"><%= formatBytes(globalTraffic.total_up + globalTraffic.total_down) %></p>
+        <p class="text-violet-400 text-lg font-bold" id="global-traffic"><%= formatBytes(globalTraffic.total_up + globalTraffic.total_down) %></p>
       </div>
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#fb923c">
         <p class="text-gray-500 text-xs mb-1">已用流量</p>
-        <p class="text-orange-400 text-lg font-bold"><%= formatBytes(traffic.total_up + traffic.total_down) %></p>
+        <p class="text-orange-400 text-lg font-bold" id="used-traffic"><%= formatBytes(traffic.total_up + traffic.total_down) %></p>
       </div>
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#06b6d4">
         <p class="text-gray-500 text-xs mb-1"><%= expiresAt ? '剩余流量 / 到期' : '剩余流量' %></p>
-        <p class="text-cyan-400 text-lg font-bold">
+        <p class="text-cyan-400 text-lg font-bold" id="remaining-traffic">
           <%= trafficLimit > 0 ? formatBytes(Math.max(0, trafficLimit - traffic.total_up - traffic.total_down)) : '∞' %>
           <% if (expiresAt) { %>
             <% const _daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000); %>
@@ -188,11 +188,38 @@
       });
     }
 
-    // 加载在线人数
-    fetch('/online-count').then(r=>r.json()).then(d=>{
-      const el = document.getElementById('online-count');
-      if (el) el.textContent = (typeof d.online === 'number') ? d.online + ' 人' : '0 人';
-    }).catch(()=>{});
+    // formatBytes 前端版本
+    function fmtBytes(b) {
+      if (b <= 0) return '0 B';
+      const u = ['B','KB','MB','GB','TB'];
+      const i = Math.min(Math.floor(Math.log(b) / Math.log(1024)), u.length - 1);
+      return (b / Math.pow(1024, i)).toFixed(i > 0 ? 2 : 0) + ' ' + u[i];
+    }
+
+    // 实时刷新统计数据（每 30 秒）
+    function refreshStats() {
+      fetch('/api/stats').then(r => r.json()).then(d => {
+        const el = document.getElementById('online-count');
+        if (el) el.textContent = (d.online || 0) + ' 人';
+        const gt = document.getElementById('global-traffic');
+        if (gt) gt.textContent = fmtBytes((d.globalUp || 0) + (d.globalDown || 0));
+        const ut = document.getElementById('used-traffic');
+        if (ut) ut.textContent = fmtBytes(d.totalUsed || 0);
+        const rt = document.getElementById('remaining-traffic');
+        if (rt) {
+          // 保留到期信息 span
+          const expirySpan = rt.querySelector('span');
+          const txt = d.remaining < 0 ? '∞' : fmtBytes(d.remaining);
+          if (expirySpan) {
+            rt.childNodes[0].textContent = txt + ' ';
+          } else {
+            rt.textContent = txt;
+          }
+        }
+      }).catch(() => {});
+    }
+    refreshStats();
+    setInterval(refreshStats, 30000);
 
     // 订阅重置倒计时
     const nextUuidResetAt = <%- JSON.stringify(nextUuidResetAt || 0) %>;

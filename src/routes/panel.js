@@ -325,6 +325,26 @@ router.get('/online-count', requireAuth, (req, res) => {
   res.json(summary);
 });
 
+// 实时统计 API（前端轮询用）
+router.get('/api/stats', requireAuth, (req, res) => {
+  const cache = getOnlineCache();
+  const summary = cache.summary || { online: 0, nodes: 0 };
+  const traffic = db.getUserTraffic(req.user.id);
+  const user = db.getUserById(req.user.id);
+  const trafficLimit = user ? (user.traffic_limit || 0) : 0;
+  const totalUsed = (traffic.total_up || 0) + (traffic.total_down || 0);
+  const remaining = trafficLimit > 0 ? Math.max(0, trafficLimit - totalUsed) : -1; // -1 = unlimited
+  const globalTraffic = db.getGlobalTraffic();
+  res.json({
+    online: summary.online || 0,
+    totalUsed,
+    remaining,
+    trafficLimit,
+    globalUp: globalTraffic.total_up || 0,
+    globalDown: globalTraffic.total_down || 0,
+  });
+});
+
 // Sprint 6: 用户流量使用明细 API
 router.get('/api/traffic-detail', requireAuth, (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 90);
