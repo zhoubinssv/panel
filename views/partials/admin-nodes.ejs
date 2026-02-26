@@ -167,44 +167,47 @@
     </div>
   </div>
 
-  <!-- 添加节点 -->
+  <!-- 一键部署 -->
   <details class="glass rounded-2xl">
-    <summary class="text-rose-400 text-sm cursor-pointer hover:text-rose-300 p-4">➕ 添加节点（SSH 自动部署）</summary>
-    <form method="POST" action="/admin/api/nodes/deploy" class="px-4 pb-4 grid grid-cols-2 gap-3" onsubmit="return validateDeployForm(this)">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="text" name="host" placeholder="服务器 IP *" required pattern="^[a-zA-Z0-9._-]{1,253}$" title="请输入有效的 IP 或域名" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <input type="password" name="ssh_password" placeholder="SSH 密码 *" required minlength="1" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <input type="number" name="ssh_port" placeholder="SSH 端口（默认 22）" min="1" max="65535" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <input type="text" name="ssh_user" placeholder="SSH 用户名（默认 root）" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <details class="col-span-2">
-        <summary class="text-gray-500 text-xs cursor-pointer hover:text-gray-300">🔗 Socks5 落地（可选）</summary>
-        <div class="grid grid-cols-2 gap-3 mt-2">
-          <input type="text" name="socks5_host" placeholder="Socks5 地址" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-          <input type="number" name="socks5_port" placeholder="端口（默认 1080）" min="1" max="65535" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-          <input type="text" name="socks5_user" placeholder="用户名" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-          <input type="password" name="socks5_pass" placeholder="密码" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-        </div>
-      </details>
-      <button class="bg-rose-600 hover:bg-rose-500 text-white py-2.5 rounded-xl text-sm col-span-2 transition font-medium" id="deploy-btn">🚀 部署</button>
-    </form>
-  </details>
-
-  <!-- 双协议一键部署（VLESS + SS） -->
-  <details class="glass rounded-2xl">
-    <summary class="text-amber-400 text-sm cursor-pointer hover:text-amber-300 p-4">⚡ 双协议部署（VLESS IPv4 + SS IPv6 同机）</summary>
-    <form method="POST" action="/admin/api/nodes/deploy-dual" class="px-4 pb-4 grid grid-cols-2 gap-3" onsubmit="return validateDualDeployForm(this)">
+    <summary class="text-rose-400 text-sm cursor-pointer hover:text-rose-300 p-4">🚀 一键部署节点</summary>
+    <form method="POST" action="/admin/api/nodes/deploy-smart" class="px-4 pb-4 grid grid-cols-2 gap-3" onsubmit="return validateSmartDeploy(this)">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="text" name="host" placeholder="服务器 IP *" required class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
       <input type="password" name="ssh_password" placeholder="SSH 密码 *" required minlength="1" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
       <input type="number" name="ssh_port" placeholder="SSH 端口（默认 22）" min="1" max="65535" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
       <input type="text" name="ssh_user" placeholder="SSH 用户名（默认 root）" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <select name="ss_method" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm col-span-2">
-        <option value="aes-256-gcm">SS 加密：aes-256-gcm（推荐）</option>
-        <option value="aes-128-gcm">aes-128-gcm</option>
-        <option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</option>
-      </select>
+
+      <!-- 协议滑块 -->
+      <div class="col-span-2 flex items-center gap-6 py-2">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <div class="relative">
+            <input type="checkbox" name="enable_vless" checked class="sr-only peer" onchange="updateDeployHint()">
+            <div class="w-10 h-5 bg-gray-600 rounded-full peer-checked:bg-rose-500 transition"></div>
+            <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-5 transition"></div>
+          </div>
+          <span class="text-sm text-white">VLESS <span class="text-gray-400 text-xs">IPv4</span></span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <div class="relative">
+            <input type="checkbox" name="enable_ss" class="sr-only peer" onchange="updateDeployHint()">
+            <div class="w-10 h-5 bg-gray-600 rounded-full peer-checked:bg-cyan-500 transition"></div>
+            <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-5 transition"></div>
+          </div>
+          <span class="text-sm text-white">Shadowsocks <span class="text-gray-400 text-xs">IPv6</span></span>
+        </label>
+      </div>
+
+      <!-- SS 加密方式（SS 开启时显示） -->
+      <div class="col-span-2 hidden" id="ss-method-row">
+        <select name="ss_method" class="w-full bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
+          <option value="aes-256-gcm">SS 加密：aes-256-gcm（推荐）</option>
+          <option value="aes-128-gcm">aes-128-gcm</option>
+          <option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</option>
+        </select>
+      </div>
+
       <details class="col-span-2">
-        <summary class="text-gray-500 text-xs cursor-pointer hover:text-gray-300">🔗 Socks5 落地（可选）</summary>
+        <summary class="text-gray-500 text-xs cursor-pointer hover:text-gray-300">🔗 Socks5 落地（可选，仅 VLESS）</summary>
         <div class="grid grid-cols-2 gap-3 mt-2">
           <input type="text" name="socks5_host" placeholder="Socks5 地址" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
           <input type="number" name="socks5_port" placeholder="端口（默认 1080）" min="1" max="65535" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
@@ -212,27 +215,12 @@
           <input type="password" name="socks5_pass" placeholder="密码" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
         </div>
       </details>
-      <p class="text-[11px] text-gray-500 col-span-2">一台服务器同时部署 VLESS（IPv4）和 Shadowsocks（IPv6），需要服务器同时有 IPv4 和 IPv6</p>
-      <button class="bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-xl text-sm col-span-2 transition font-medium" id="deploy-dual-btn">⚡ 双协议部署</button>
-    </form>
-  </details>
 
-  <!-- IPv6 SS 自动部署 -->
-  <details class="glass rounded-2xl">
-    <summary class="text-cyan-400 text-sm cursor-pointer hover:text-cyan-300 p-4">➕ 部署 IPv6 SS 节点（SSH 自动部署）</summary>
-    <form method="POST" action="/admin/api/nodes/deploy-ss" class="px-4 pb-4 grid grid-cols-2 gap-3" onsubmit="return validateSsDeployForm(this)">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="text" name="host" placeholder="服务器 IP（IPv4 SSH 地址）*" required class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <input type="password" name="ssh_password" placeholder="SSH 密码 *" required minlength="1" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <input type="number" name="ssh_port" placeholder="SSH 端口（默认 22）" min="1" max="65535" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <input type="text" name="ssh_user" placeholder="SSH 用户名（默认 root）" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm">
-      <select name="ss_method" class="bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm col-span-2">
-        <option value="aes-256-gcm">aes-256-gcm（推荐）</option>
-        <option value="aes-128-gcm">aes-128-gcm</option>
-        <option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</option>
-      </select>
-      <p class="text-[11px] text-gray-500 col-span-2">自动检测服务器 IPv6 地址、安装 xray、配置 SS 入站、开放防火墙</p>
-      <button class="bg-cyan-600 hover:bg-cyan-500 text-white py-2.5 rounded-xl text-sm col-span-2 transition font-medium" id="deploy-ss-btn">🚀 部署 SS</button>
+      <p class="text-[11px] col-span-2" id="deploy-hint">
+        <span class="text-gray-400">当前模式：</span>
+        <span class="text-rose-400" id="deploy-mode-text">仅 VLESS（IPv4）</span>
+      </p>
+      <button class="bg-rose-600 hover:bg-rose-500 text-white py-2.5 rounded-xl text-sm col-span-2 transition font-medium" id="deploy-btn">🚀 部署</button>
     </form>
   </details>
 
@@ -242,46 +230,47 @@
 // CSRF token
 const _csrf = '<%= csrfToken %>';
 
-// SS 字段切换
-function toggleSsFields(sel) {
-  const ssFields = sel.closest('form').querySelector('.ss-fields');
-  ssFields.style.display = sel.value === 'ss' ? '' : 'none';
-}
-
-// 部署表单校验
-function validateDeployForm(form) {
-  const host = form.host.value.trim();
-  const pwd = form.ssh_password.value;
-  if (!host) { toast('请填写服务器 IP', 2500, 'error'); form.host.focus(); return false; }
-  if (!/^[a-zA-Z0-9._-]{1,253}$/.test(host)) { toast('IP/域名格式不正确', 2500, 'error'); form.host.focus(); return false; }
-  if (!pwd) { toast('请填写 SSH 密码', 2500, 'error'); form.ssh_password.focus(); return false; }
-  const port = form.ssh_port.value;
-  if (port && (parseInt(port) < 1 || parseInt(port) > 65535)) { toast('SSH 端口范围 1-65535', 2500, 'error'); form.ssh_port.focus(); return false; }
+// 部署模式提示更新
+function updateDeployHint() {
+  const vless = document.querySelector('[name="enable_vless"]').checked;
+  const ss = document.querySelector('[name="enable_ss"]').checked;
+  const modeText = document.getElementById('deploy-mode-text');
+  const ssRow = document.getElementById('ss-method-row');
   const btn = document.getElementById('deploy-btn');
-  btn.textContent = '⏳ 部署中...';
-  btn.classList.add('btn-loading');
-  return true;
+
+  ssRow.classList.toggle('hidden', !ss);
+
+  if (vless && ss) {
+    modeText.textContent = '⚡ 双协议（VLESS IPv4 + SS IPv6）';
+    modeText.className = 'text-amber-400';
+    btn.className = btn.className.replace(/bg-\w+-600/g, 'bg-amber-600').replace(/hover:bg-\w+-500/g, 'hover:bg-amber-500');
+    btn.textContent = '⚡ 双协议部署';
+  } else if (vless) {
+    modeText.textContent = '仅 VLESS（IPv4）';
+    modeText.className = 'text-rose-400';
+    btn.className = btn.className.replace(/bg-\w+-600/g, 'bg-rose-600').replace(/hover:bg-\w+-500/g, 'hover:bg-rose-500');
+    btn.textContent = '🚀 部署 VLESS';
+  } else if (ss) {
+    modeText.textContent = '仅 Shadowsocks（IPv6）';
+    modeText.className = 'text-cyan-400';
+    btn.className = btn.className.replace(/bg-\w+-600/g, 'bg-cyan-600').replace(/hover:bg-\w+-500/g, 'hover:bg-cyan-500');
+    btn.textContent = '🚀 部署 SS';
+  } else {
+    modeText.textContent = '⚠️ 请至少选择一个协议';
+    modeText.className = 'text-red-400';
+  }
 }
 
-// SS 部署表单校验
-function validateSsDeployForm(form) {
+// 统一部署表单校验
+function validateSmartDeploy(form) {
   const host = form.host.value.trim();
   const pwd = form.ssh_password.value;
+  const vless = form.enable_vless.checked;
+  const ss = form.enable_ss.checked;
+  if (!vless && !ss) { toast('请至少选择一个协议', 2500, 'error'); return false; }
   if (!host) { toast('请填写服务器 IP', 2500, 'error'); form.host.focus(); return false; }
   if (!pwd) { toast('请填写 SSH 密码', 2500, 'error'); form.ssh_password.focus(); return false; }
-  const btn = document.getElementById('deploy-ss-btn');
-  btn.textContent = '⏳ 部署中...';
-  btn.classList.add('btn-loading');
-  return true;
-}
-
-// 双协议部署表单校验
-function validateDualDeployForm(form) {
-  const host = form.host.value.trim();
-  const pwd = form.ssh_password.value;
-  if (!host) { toast('请填写服务器 IP', 2500, 'error'); form.host.focus(); return false; }
-  if (!pwd) { toast('请填写 SSH 密码', 2500, 'error'); form.ssh_password.focus(); return false; }
-  const btn = document.getElementById('deploy-dual-btn');
+  const btn = document.getElementById('deploy-btn');
   btn.textContent = '⏳ 部署中...';
   btn.classList.add('btn-loading');
   return true;

@@ -706,6 +706,11 @@ async function deploySsNode(sshInfo, db) {
       db.addAuditLog(sshInfo.triggered_by || null, 'node_deploy_ss', `SS部署成功: ${name} (IPv6: ${ipv6Addr}:${port})`, 'system');
       console.log(`[SS部署成功] ${name} (${ipv6Addr}:${port})`);
       try { notify.deploy(name, true, `IPv6 SS | ${ipv6Addr}:${port}`); } catch {}
+
+      // 安装 Agent
+      try { await installAgentOnNode(ssh, nodeId, db); } catch (e) {
+        console.error(`[Agent安装] ${name} 失败: ${e.message}`);
+      }
     } else {
       const errMsg = (startResult.stderr || startResult.stdout).substring(0, 200);
       db.updateNode(nodeId, { remark: `❌ 部署失败: ${errMsg}` });

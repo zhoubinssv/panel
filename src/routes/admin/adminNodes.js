@@ -16,6 +16,38 @@ function isValidHost(host) {
 
 const router = express.Router();
 
+// 统一部署入口
+router.post('/nodes/deploy-smart', (req, res) => {
+  const { host, ssh_port, ssh_user, ssh_password, ss_method, enable_vless, enable_ss,
+          socks5_host, socks5_port, socks5_user, socks5_pass } = req.body;
+  if (!host || !ssh_password) return res.redirect('/admin#nodes');
+
+  const vless = enable_vless === 'on';
+  const ss = enable_ss === 'on';
+  if (!vless && !ss) return res.redirect('/admin#nodes');
+
+  const sshInfo = {
+    host, ssh_port: parseInt(ssh_port) || 22, ssh_user: ssh_user || 'root', ssh_password,
+    ss_method: ss_method || 'aes-256-gcm',
+    socks5_host: socks5_host || null, socks5_port: parseInt(socks5_port) || 1080,
+    socks5_user: socks5_user || null, socks5_pass: socks5_pass || null,
+    triggered_by: req.user.id
+  };
+
+  if (vless && ss) {
+    db.addAuditLog(req.user.id, 'node_deploy_dual_start', `开始双协议部署: ${host}`, req.ip);
+    deployService.deployDualNode(sshInfo, db).catch(err => console.error('[双协议部署异常]', err));
+  } else if (vless) {
+    db.addAuditLog(req.user.id, 'node_deploy_start', `开始VLESS部署: ${host}`, req.ip);
+    deployService.deployNode(sshInfo, db).catch(err => console.error('[部署异常]', err));
+  } else {
+    db.addAuditLog(req.user.id, 'node_deploy_ss_start', `开始SS部署: ${host}`, req.ip);
+    deployService.deploySsNode(sshInfo, db).catch(err => console.error('[SS部署异常]', err));
+  }
+
+  res.redirect('/admin?msg=deploying#nodes');
+});
+
 router.post('/nodes/deploy-dual', (req, res) => {
   const { host, ssh_port, ssh_user, ssh_password, ss_method, socks5_host, socks5_port, socks5_user, socks5_pass } = req.body;
   if (!host || !ssh_password) return res.redirect('/admin#nodes');
