@@ -70,7 +70,7 @@
       <div class="space-y-2">
         <div>
           <div class="text-[11px] text-gray-400 mb-1">🌐 IPv4 订阅（VLESS）</div>
-          <div class="flex flex-wrap gap-2">
+          <div class="flex flex-wrap gap-2 sub-btn-row">
             <input type="text" readonly value="<%= subUrl %>" id="sub-link"
                    class="flex-1 min-w-0 bg-black/30 text-rose-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
             <button onclick="copySubLink()" class="bg-rose-600 hover:bg-rose-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
@@ -79,7 +79,7 @@
         </div>
         <div>
           <div class="text-[11px] text-gray-400 mb-1">🌐 IPv6 订阅（Shadowsocks）</div>
-          <div class="flex flex-wrap gap-2">
+          <div class="flex flex-wrap gap-2 sub-btn-row">
             <input type="text" readonly value="<%= subUrl6 %>" id="sub6-link"
                    class="flex-1 min-w-0 bg-black/30 text-cyan-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
             <button onclick="copySub6Link()" class="bg-rose-600 hover:bg-rose-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
@@ -296,6 +296,13 @@
     .pb-events-title{color:#9ca3af;font-size:10px;margin-bottom:6px}
     #pb-events{max-height:140px;overflow-y:auto}
     .pb-footer{color:#4b5563;font-size:9px;text-align:center}
+    .pb-emoji{font-size:20px}
+    .pb-event{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
+    .pb-event-icon{font-size:12px}
+    .pb-event-detail{color:#d1d5db;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pb-event-time{color:#6b7280;font-size:9px}
+    .pb-event-empty{color:#6b7280;font-size:11px;text-align:center;padding:8px 0}
+    @media(max-width:400px){.sub-btn-row .bg-rose-600,.sub-btn-row .bg-indigo-600{padding-left:0.75rem;padding-right:0.75rem;font-size:0.75rem}}
   </style>
   <div id="peach-bubble" onclick="togglePeachPanel()" role="button" aria-label="蜜桃酱状态面板" tabindex="0">
     🍑
@@ -305,7 +312,7 @@
   <!-- 蜜桃酱展开面板 -->
   <div id="peach-panel">
     <div class="pb-header">
-      <span style="font-size:20px">🍑</span>
+      <span class="pb-emoji">🍑</span>
       <span class="pb-title">蜜桃酱守护中</span>
       <span class="pb-dot"></span>
     </div>
@@ -349,13 +356,13 @@
         const evDiv = el('pb-events');
         if (d.recentEvents && d.recentEvents.length) {
           evDiv.innerHTML = d.recentEvents.map(e =>
-            '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03)">' +
-            '<span style="font-size:12px">' + (icons[e.action]||'📋') + '</span>' +
-            '<div style="flex:1;min-width:0"><p style="color:#d1d5db;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(e.detail||e.action) + '</p>' +
-            '<p style="color:#6b7280;font-size:9px">' + esc(e.time) + '</p></div></div>'
+            '<div class="pb-event">' +
+            '<span class="pb-event-icon">' + (icons[e.action]||'📋') + '</span>' +
+            '<div style="flex:1;min-width:0"><p class="pb-event-detail">' + esc(e.detail||e.action) + '</p>' +
+            '<p class="pb-event-time">' + esc(e.time) + '</p></div></div>'
           ).join('');
         } else {
-          evDiv.innerHTML = '<p style="color:#6b7280;font-size:11px;text-align:center;padding:8px 0">暂无运维事件</p>';
+          evDiv.innerHTML = '<p class="pb-event-empty">暂无运维事件</p>';
         }
       } catch(e) { console.error('peach error', e); }
     }
