@@ -494,11 +494,11 @@ router.get('/donate', requireAuth, (req, res) => {
   // 获取用户的捐赠记录
   const donations = d.prepare('SELECT * FROM node_donations WHERE user_id = ? ORDER BY created_at DESC').all(user.id);
 
-  // 生成或获取用户的捐赠 token
-  let activeDonation = donations.find(dn => dn.status === 'pending');
+  // 生成或获取用户的捐赠 token（从 donate_tokens 表）
+  const tokenRecord = d.prepare('SELECT * FROM donate_tokens WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(user.id);
   let donateToken;
-  if (activeDonation) {
-    donateToken = activeDonation.token;
+  if (tokenRecord) {
+    donateToken = tokenRecord.token;
   } else {
     donateToken = 'donate-' + uuidv4();
   }
@@ -521,7 +521,8 @@ router.post('/donate/generate', requireAuth, (req, res) => {
   const user = req.user;
   const d = db.getDb();
   const token = 'donate-' + uuidv4();
-  d.prepare('INSERT INTO node_donations (user_id, token) VALUES (?, ?)').run(user.id, token);
+  // 只记录令牌绑定用户，不插 node_donations，等 Agent 真正连上来再创建记录
+  d.prepare('INSERT OR REPLACE INTO donate_tokens (user_id, token, created_at) VALUES (?, ?, datetime("now", "localtime"))').run(user.id, token);
   db.addAuditLog(user.id, 'donate_generate', `用户 ${user.username} 生成捐赠令牌`, '');
   res.json({ ok: true, token });
 });

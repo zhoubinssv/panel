@@ -181,13 +181,22 @@ function handleAuth(ws, msg) {
   // ─── 捐赠节点认证 ───
   if (token.startsWith('donate-')) {
     const d = db.getDb();
-    const donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
+    // 先查已有的捐赠记录
+    let donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
     if (!donation) {
-      return ws.close(4005, '无效的捐赠令牌');
+      // 从令牌表查找用户，Agent 首次连接时才创建捐赠记录
+      const tokenRecord = d.prepare('SELECT * FROM donate_tokens WHERE token = ?').get(token);
+      if (!tokenRecord) {
+        return ws.close(4005, '无效的捐赠令牌');
+      }
+      const ip = ws._agentState.ip;
+      d.prepare("INSERT INTO node_donations (user_id, token, server_ip, status) VALUES (?, ?, ?, 'pending')").run(tokenRecord.user_id, token, ip);
+      donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
+    } else {
+      // 更新 IP
+      const ip = ws._agentState.ip;
+      d.prepare("UPDATE node_donations SET server_ip = ?, status = 'pending' WHERE id = ?").run(ip, donation.id);
     }
-    // 更新捐赠记录的 IP
-    const ip = ws._agentState.ip;
-    d.prepare("UPDATE node_donations SET server_ip = ?, status = 'pending' WHERE id = ?").run(ip, donation.id);
     clearTimeout(ws._authTimer);
     ws._agentState.authenticated = true;
     ws._agentState.nodeId = `donate-${donation.id}`;

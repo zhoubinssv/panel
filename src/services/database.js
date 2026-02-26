@@ -340,6 +340,16 @@ function initTables() {
     )
   `);
 
+  // 捐赠令牌表（生成时记录，Agent连上来才转入 node_donations）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS donate_tokens (
+      user_id INTEGER NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      PRIMARY KEY (token)
+    )
+  `);
+
   // Sprint 7: 清理废弃 AI 表
   db.exec("DROP TABLE IF EXISTS ai_providers");
   db.exec("DROP TABLE IF EXISTS ai_chats");
