@@ -163,38 +163,73 @@ async function loadAllInstances(force) {
     const res = await fetch('/admin/api/aws/all-instances' + (force ? '?force=1' : ''));
     const accounts = await res.json();
     if (!res.ok) throw new Error(accounts.error || '加载失败');
+
+    // 区域友好名映射
+    const regionNames = {
+      'us-east-1': '🇺🇸 弗吉尼亚', 'us-east-2': '🇺🇸 俄亥俄', 'us-west-1': '🇺🇸 加州', 'us-west-2': '🇺🇸 俄勒冈',
+      'ap-northeast-1': '🇯🇵 东京', 'ap-northeast-2': '🇰🇷 首尔', 'ap-northeast-3': '🇯🇵 大阪',
+      'ap-southeast-1': '🇸🇬 新加坡', 'ap-southeast-2': '🇦🇺 悉尼', 'ap-south-1': '🇮🇳 孟买', 'ap-east-1': '🇭🇰 香港',
+      'eu-west-1': '🇮🇪 爱尔兰', 'eu-west-2': '🇬🇧 伦敦', 'eu-central-1': '🇩🇪 法兰克福',
+      'ca-central-1': '🇨🇦 多伦多', 'sa-east-1': '🇧🇷 圣保罗'
+    };
+
     let html = '';
     for (const acc of accounts) {
       if (acc.instances.length === 0) continue;
-      html += '<div class="mb-3"><div class="text-xs text-gray-400 mb-2 font-medium">📦 ' + escapeHtml(acc.accountName) + ' (#' + escapeHtml(acc.accountId) + ')</div><div class="space-y-1.5">';
+      html += '<div class="mb-4">' +
+        '<div class="text-[11px] text-gray-500 mb-2 px-1">📦 ' + escapeHtml(acc.accountName) + ' <span class="text-gray-600">#' + escapeHtml(acc.accountId) + '</span></div>';
+
+      // 按区域分组
+      const byRegion = {};
       for (const inst of acc.instances) {
-        const isBlocked = inst.boundNode && (inst.boundNode.remark?.includes('被墙') || inst.boundNode.remark?.includes('离线') || !inst.boundNode.is_active);
-        const stateColor = inst.state === 'running' ? 'text-emerald-400' : inst.state === 'stopped' ? 'text-gray-500' : 'text-yellow-400';
-        const stateDot = inst.state === 'running' ? 'bg-emerald-400' : inst.state === 'stopped' ? 'bg-gray-500' : 'bg-yellow-400';
-        const rowBg = isBlocked ? 'bg-red-500/10 border border-red-500/20' : 'bg-black/20';
-        const safeInstId = escapeHtml(inst.instanceId);
-        const safeInstType = escapeHtml(inst.instanceType);
-        const safeRegion = escapeHtml(inst.region);
-        const safeAccId = parseInt(inst.accountId) || 0;
-        html += '<div class="p-2.5 rounded-xl ' + rowBg + ' space-y-2">' +
-          '<div class="flex items-center gap-2 flex-wrap">' +
-          '<span class="inline-block w-2 h-2 rounded-full ' + stateDot + ' flex-shrink-0"></span>' +
-          '<span class="text-xs text-white font-medium">' + escapeHtml(inst.name || inst.instanceId) + '</span>' +
-          '<span class="text-[10px] ' + stateColor + '">' + escapeHtml(inst.state) + '</span>' +
-          '<span class="text-[10px] text-gray-600">' + safeRegion + '</span>' +
-          '<span class="text-[10px] px-1 py-0.5 rounded ' + (inst.instanceType === 'lightsail' ? 'bg-purple-500/20 text-purple-300' : 'bg-sky-500/20 text-sky-300') + '">' + safeInstType + '</span></div>' +
-          '<div class="flex items-center gap-2 flex-wrap text-[10px]">' +
-          (inst.publicIp ? '<span class="text-blue-300 font-mono">' + escapeHtml(inst.publicIp) + '</span>' : '') +
-          (inst.boundNode ? '<span class="px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300">🔗 ' + escapeHtml(inst.boundNode.name) + '</span>' : '') +
-          (isBlocked ? '<span class="px-1 py-0.5 rounded bg-red-500/30 text-red-300">⚠️ 异常</span>' : '') + '</div>' +
-          '<div class="flex items-center gap-1 flex-wrap">' +
-          (inst.state === 'stopped' ? '<button onclick="awsInstanceAction(\'start\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30">▶ 开机</button>' : '') +
-          (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'stop\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] px-2 py-1 rounded-lg bg-gray-500/20 text-gray-300 hover:bg-gray-500/30">⏹ 关机</button>' : '') +
-          (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'swap-ip\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] px-2 py-1 rounded-lg ' + (isBlocked ? 'bg-red-500/30 text-red-200 hover:bg-red-500/40 font-medium' : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30') + '">🔄 换IP</button>' : '') +
-          '<button onclick="awsInstanceAction(\'terminate\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] px-2 py-1 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30">🗑 终止</button>' +
-          '</div></div>';
+        const r = inst.region || 'unknown';
+        if (!byRegion[r]) byRegion[r] = [];
+        byRegion[r].push(inst);
       }
-      html += '</div></div>';
+
+      for (const [region, instances] of Object.entries(byRegion)) {
+        const regionLabel = regionNames[region] || '🌐 ' + region;
+        html += '<div class="mb-3"><div class="text-[10px] text-gray-600 mb-1.5 px-1">' + regionLabel + '</div>' +
+          '<div class="rounded-xl border border-white/5 overflow-hidden divide-y divide-white/5">';
+
+        for (const inst of instances) {
+          const isBlocked = inst.boundNode && (inst.boundNode.remark?.includes('被墙') || inst.boundNode.remark?.includes('离线') || !inst.boundNode.is_active);
+          const stateDot = inst.state === 'running' ? 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.5)]' : inst.state === 'stopped' ? 'bg-gray-600' : 'bg-yellow-400';
+          const rowBg = isBlocked ? 'bg-red-500/5' : 'bg-white/[0.02] hover:bg-white/[0.04]';
+          const safeInstId = escapeHtml(inst.instanceId);
+          const safeInstType = escapeHtml(inst.instanceType);
+          const safeRegion = escapeHtml(inst.region);
+          const safeAccId = parseInt(inst.accountId) || 0;
+          const typeBadge = inst.instanceType === 'lightsail'
+            ? '<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400/80">LS</span>'
+            : '<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400/80">EC2</span>';
+
+          html += '<div class="' + rowBg + ' px-3 py-2 transition-colors">' +
+            '<div class="flex items-center justify-between gap-2">' +
+            // 左侧：状态点 + 名称 + 类型
+            '<div class="flex items-center gap-2 min-w-0 flex-1">' +
+            '<span class="inline-block w-1.5 h-1.5 rounded-full ' + stateDot + ' flex-shrink-0"></span>' +
+            '<span class="text-[11px] text-white/90 font-medium truncate">' + escapeHtml(inst.name || inst.instanceId) + '</span>' +
+            typeBadge +
+            '</div>' +
+            // 右侧：IP + 节点 + 操作按钮
+            '<div class="flex items-center gap-2 flex-shrink-0">' +
+            (inst.publicIp ? '<span class="text-[10px] text-blue-400/70 font-mono">' + escapeHtml(inst.publicIp) + '</span>' : '<span class="text-[10px] text-gray-700 italic">无 IP</span>') +
+            (inst.boundNode ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400/80">🔗 ' + escapeHtml(inst.boundNode.name) + '</span>' : '') +
+            (isBlocked ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400">⚠️</span>' : '') +
+            // 操作按钮组
+            '<div class="flex items-center gap-0.5">' +
+            (inst.state === 'stopped' ? '<button onclick="awsInstanceAction(\'start\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] w-6 h-6 flex items-center justify-center rounded-lg hover:bg-emerald-500/20 text-emerald-400/60 hover:text-emerald-300 transition-colors" title="开机">▶</button>' : '') +
+            (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'stop\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] w-6 h-6 flex items-center justify-center rounded-lg hover:bg-gray-500/20 text-gray-500 hover:text-gray-300 transition-colors" title="关机">⏹</button>' : '') +
+            (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'swap-ip\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] w-6 h-6 flex items-center justify-center rounded-lg ' + (isBlocked ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300' : 'hover:bg-amber-500/20 text-amber-500/60 hover:text-amber-300') + ' transition-colors" title="换IP">🔄</button>' : '') +
+            '<button onclick="awsInstanceAction(\'terminate\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-500/20 text-red-500/40 hover:text-red-300 transition-colors" title="终止">🗑</button>' +
+            '</div>' +
+            '</div>' +
+            '</div></div>';
+        }
+        html += '</div></div>';
+      }
+      html += '</div>';
     }
     if (!html) html = '<p class="text-gray-500 text-xs text-center py-4">暂无实例</p>';
     container.innerHTML = html;
