@@ -43,10 +43,11 @@ router.post('/donations/:id/approve', async (req, res) => {
 
     // 创建节点记录
     const agentToken = uuidv4();
+    const nodeUuid = uuidv4();
     const nodeResult = d.prepare(`
-      INSERT INTO nodes (name, host, port, is_active, agent_token, group_name, remark)
-      VALUES (?, ?, 443, 1, ?, ?, '🎁 捐赠节点')
-    `).run(nodeName, donation.server_ip, agentToken, group_name || '捐赠节点');
+      INSERT INTO nodes (name, host, port, uuid, is_active, agent_token, group_name, remark)
+      VALUES (?, ?, 443, ?, 1, ?, ?, '🎁 捐赠节点')
+    `).run(nodeName, donation.server_ip, nodeUuid, agentToken, group_name || '捐赠节点');
 
     const nodeId = nodeResult.lastInsertRowid;
 
