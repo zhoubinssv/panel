@@ -203,6 +203,17 @@ function handleAuth(ws, msg) {
     ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已连接，等待管理员审核' }));
     console.log(`[Agent-WS] 捐赠节点连接 from ${ip}, 用户#${donation.user_id}, 令牌: ${token}`);
     db.addAuditLog(donation.user_id, 'donate_connect', `捐赠节点连接: IP ${ip}`, ip);
+    // 异步检测地区
+    try {
+      const { detectRegion } = require('./deploy');
+      detectRegion(ip).then(geo => {
+        if (geo && geo.city !== 'Unknown') {
+          const region = `${geo.emoji} ${geo.cityCN}`;
+          d.prepare('UPDATE node_donations SET region = ? WHERE id = ?').run(region, donation.id);
+          console.log(`[Agent-WS] 捐赠节点地区检测: ${ip} → ${region}`);
+        }
+      }).catch(() => {});
+    } catch {}
     notify.donateConnect && notify.donateConnect(ip, donation.user_id);
     return;
   }
