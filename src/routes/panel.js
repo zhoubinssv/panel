@@ -492,7 +492,7 @@ router.get('/donate', requireAuth, (req, res) => {
   const d = db.getDb();
 
   // 获取用户的捐赠记录
-  const donations = d.prepare('SELECT * FROM node_donations WHERE user_id = ? ORDER BY created_at DESC').all(user.id);
+  const donations = d.prepare("SELECT * FROM node_donations WHERE user_id = ? AND status IN ('pending', 'online') ORDER BY created_at DESC").all(user.id);
 
   // 生成或获取用户的捐赠 token（从 donate_tokens 表）
   const tokenRecord = d.prepare('SELECT * FROM donate_tokens WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(user.id);
