@@ -122,11 +122,11 @@
         // 按 group_name 分组
         const _groups = {};
         userNodes.forEach(n => {
-          const g = n.group_name || '默认';
+          const g = n.group_name || '🍑 小姨子';
           if (!_groups[g]) _groups[g] = [];
           _groups[g].push(n);
         });
-        const _groupNames = Object.keys(_groups).sort((a, b) => a === '默认' ? 1 : b === '默认' ? -1 : a.localeCompare(b));
+        const _groupNames = Object.keys(_groups).sort((a, b) => a.includes('小姨子') ? -1 : b.includes('小姨子') ? 1 : a.localeCompare(b));
       %>
       <% _groupNames.forEach(gName => { %>
         <% if (_groupNames.length > 1) { %>
