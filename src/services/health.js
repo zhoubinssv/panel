@@ -4,6 +4,8 @@ const { notify, send: notifySend } = require('./notify');
 
 // 模块级缓存（替代 global 变量）
 const _trafficNotifiedCache = new Set();
+// 节点连续失败计数（防抖用，连续 N 次失败才通知掉线）
+const _nodeFailCount = new Map();
 
 // TCP 端口探测
 function checkPort(host, port, timeout = 5000) {
@@ -123,11 +125,19 @@ function updateFromAgentReport(nodeId, reportData) {
     remark = '';
   }
 
-  // 状态变化通知
-  if (status !== node.is_active || (remark && remark !== node.remark)) {
-    if (!status && node.is_active) {
-      console.log(`[Agent] 节点 ${node.name} → ${remark}`);
-      db.addAuditLog(null, remark.includes('被墙') ? 'node_blocked' : 'node_xray_down', `${node.name}: ${remark}`, 'system');
+  // 防抖：连续失败计数，达到阈值才通知掉线
+  const FAIL_THRESHOLD = 3;
+  const prevFailCount = _nodeFailCount.get(nodeId) || 0;
+
+  if (status === 0) {
+    // 失败计数 +1
+    const newFailCount = prevFailCount + 1;
+    _nodeFailCount.set(nodeId, newFailCount);
+
+    if (newFailCount === FAIL_THRESHOLD) {
+      // 达到阈值，触发掉线通知
+      console.log(`[Agent] 节点 ${node.name} 连续 ${FAIL_THRESHOLD} 次失败 → ${remark}`);
+      db.addAuditLog(null, remark.includes('被墙') ? 'node_blocked' : 'node_xray_down', `${node.name}: ${remark}（连续${FAIL_THRESHOLD}次）`, 'system');
 
       // 被墙且绑 AWS：自动换 IP
       if (remark.includes('被墙') && node.aws_instance_id) {
@@ -155,11 +165,29 @@ function updateFromAgentReport(nodeId, reportData) {
       } else {
         notify.nodeDown(node.name + ' ' + remark);
       }
-    } else if (status && !node.is_active) {
+    } else if (newFailCount < FAIL_THRESHOLD) {
+      // 未达阈值，静默，不更新数据库状态
+      console.log(`[Agent] 节点 ${node.name} 检测失败 (${newFailCount}/${FAIL_THRESHOLD})，暂不通知`);
+      // 保存 agent 上报时间但不改状态
+      try { db.getDb().prepare('UPDATE nodes SET agent_last_report = ? WHERE id = ?').run(now, nodeId); } catch {}
+      // 保存流量 & 检测超标
+      if (trafficRecords && trafficRecords.length > 0) {
+        saveTrafficRecords(nodeId, trafficRecords);
+        updateOnlineCache(nodeId, trafficRecords);
+      }
+      checkTrafficExceed();
+      return; // 提前返回，不更新节点为离线
+    }
+    // newFailCount > FAIL_THRESHOLD: 已经通知过了，静默更新状态即可
+  } else {
+    // 恢复在线：清零计数
+    if (prevFailCount >= FAIL_THRESHOLD && !node.is_active) {
+      // 之前确实判定过掉线，现在恢复
       console.log(`[Agent] 节点 ${node.name} 恢复在线 🟢`);
       db.addAuditLog(null, 'node_recovered', `${node.name} 恢复在线`, 'system');
       notify.nodeUp(node.name);
     }
+    _nodeFailCount.set(nodeId, 0);
   }
 
   // 更新节点状态
