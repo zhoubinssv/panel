@@ -164,7 +164,6 @@ async function loadAllInstances(force) {
     const accounts = await res.json();
     if (!res.ok) throw new Error(accounts.error || '加载失败');
 
-    // 区域友好名映射
     const regionNames = {
       'us-east-1': '🇺🇸 弗吉尼亚', 'us-east-2': '🇺🇸 俄亥俄', 'us-west-1': '🇺🇸 加州', 'us-west-2': '🇺🇸 俄勒冈',
       'ap-northeast-1': '🇯🇵 东京', 'ap-northeast-2': '🇰🇷 首尔', 'ap-northeast-3': '🇯🇵 大阪',
@@ -177,7 +176,7 @@ async function loadAllInstances(force) {
     for (const acc of accounts) {
       if (acc.instances.length === 0) continue;
       html += '<div class="mb-4">' +
-        '<div class="text-[11px] text-gray-500 mb-2 px-1">📦 ' + escapeHtml(acc.accountName) + ' <span class="text-gray-600">#' + escapeHtml(acc.accountId) + '</span></div>';
+        '<div class="text-[11px] text-gray-500 mb-3 px-1">📦 ' + escapeHtml(acc.accountName) + ' <span class="text-gray-600">#' + escapeHtml(acc.accountId) + '</span></div>';
 
       // 按区域分组
       const byRegion = {};
@@ -189,43 +188,48 @@ async function loadAllInstances(force) {
 
       for (const [region, instances] of Object.entries(byRegion)) {
         const regionLabel = regionNames[region] || '🌐 ' + region;
-        html += '<div class="mb-3"><div class="text-[10px] text-gray-600 mb-1.5 px-1">' + regionLabel + '</div>' +
-          '<div class="rounded-xl border border-white/5 overflow-hidden divide-y divide-white/5">';
+        html += '<div class="mb-4">' +
+          '<div class="text-[10px] text-gray-500 mb-2 px-1 uppercase tracking-wider">' + regionLabel + '</div>' +
+          '<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">';
 
         for (const inst of instances) {
           const isBlocked = inst.boundNode && (inst.boundNode.remark?.includes('被墙') || inst.boundNode.remark?.includes('离线') || !inst.boundNode.is_active);
-          const stateDot = inst.state === 'running' ? 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.5)]' : inst.state === 'stopped' ? 'bg-gray-600' : 'bg-yellow-400';
-          const rowBg = isBlocked ? 'bg-red-500/5' : 'bg-white/[0.02] hover:bg-white/[0.04]';
           const safeInstId = escapeHtml(inst.instanceId);
           const safeInstType = escapeHtml(inst.instanceType);
           const safeRegion = escapeHtml(inst.region);
           const safeAccId = parseInt(inst.accountId) || 0;
-          const typeBadge = inst.instanceType === 'lightsail'
-            ? '<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400/80">LS</span>'
-            : '<span class="text-[9px] px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400/80">EC2</span>';
 
-          html += '<div class="' + rowBg + ' px-3 py-2 transition-colors">' +
-            '<div class="flex items-center justify-between gap-2">' +
-            // 左侧：状态点 + 名称 + 类型
-            '<div class="flex items-center gap-2 min-w-0 flex-1">' +
-            '<span class="inline-block w-1.5 h-1.5 rounded-full ' + stateDot + ' flex-shrink-0"></span>' +
-            '<span class="text-[11px] text-white/90 font-medium truncate">' + escapeHtml(inst.name || inst.instanceId) + '</span>' +
+          const stateColor = inst.state === 'running' ? 'border-emerald-500/20' : inst.state === 'stopped' ? 'border-gray-700' : 'border-yellow-500/20';
+          const cardBg = isBlocked ? 'bg-red-500/5 border-red-500/20' : 'bg-white/[0.03] ' + stateColor;
+          const dotColor = inst.state === 'running' ? 'bg-emerald-400' : inst.state === 'stopped' ? 'bg-gray-600' : 'bg-yellow-400';
+          const typeBadge = inst.instanceType === 'lightsail'
+            ? '<span class="text-[8px] px-1 py-px rounded bg-purple-500/15 text-purple-400/70">LS</span>'
+            : '<span class="text-[8px] px-1 py-px rounded bg-sky-500/15 text-sky-400/70">EC2</span>';
+
+          html += '<div class="' + cardBg + ' border rounded-xl p-2.5 flex flex-col gap-1.5 group">' +
+            // 第一行：状态点 + 名称 + 类型
+            '<div class="flex items-center gap-1.5">' +
+            '<span class="w-1.5 h-1.5 rounded-full ' + dotColor + ' flex-shrink-0"></span>' +
+            '<span class="text-[11px] text-white/90 font-medium truncate flex-1">' + escapeHtml(inst.name || inst.instanceId) + '</span>' +
             typeBadge +
             '</div>' +
-            // 右侧：IP + 节点 + 操作按钮
-            '<div class="flex items-center gap-2 flex-shrink-0">' +
-            (inst.publicIp ? '<span class="text-[10px] text-blue-400/70 font-mono">' + escapeHtml(inst.publicIp) + '</span>' : '<span class="text-[10px] text-gray-700 italic">无 IP</span>') +
-            (inst.boundNode ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400/80">🔗 ' + escapeHtml(inst.boundNode.name) + '</span>' : '') +
-            (isBlocked ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400">⚠️</span>' : '') +
-            // 操作按钮组
-            '<div class="flex items-center gap-0.5">' +
-            (inst.state === 'stopped' ? '<button onclick="awsInstanceAction(\'start\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] w-6 h-6 flex items-center justify-center rounded-lg hover:bg-emerald-500/20 text-emerald-400/60 hover:text-emerald-300 transition-colors" title="开机">▶</button>' : '') +
-            (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'stop\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] w-6 h-6 flex items-center justify-center rounded-lg hover:bg-gray-500/20 text-gray-500 hover:text-gray-300 transition-colors" title="关机">⏹</button>' : '') +
-            (inst.state === 'running' ? '<button onclick="awsInstanceAction(\'swap-ip\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] w-6 h-6 flex items-center justify-center rounded-lg ' + (isBlocked ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300' : 'hover:bg-amber-500/20 text-amber-500/60 hover:text-amber-300') + ' transition-colors" title="换IP">🔄</button>' : '') +
-            '<button onclick="awsInstanceAction(\'terminate\',\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" class="text-[10px] w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-500/20 text-red-500/40 hover:text-red-300 transition-colors" title="终止">🗑</button>' +
-            '</div>' +
-            '</div>' +
-            '</div></div>';
+            // 第二行：IP
+            '<div class="text-[10px] font-mono ' + (inst.publicIp ? 'text-blue-400/60' : 'text-gray-700 italic') + ' truncate">' +
+            (inst.publicIp || '无公网 IP') + '</div>' +
+            // 第三行：绑定节点
+            (inst.boundNode
+              ? '<div class="text-[10px] truncate ' + (isBlocked ? 'text-red-400' : 'text-emerald-400/70') + '">' +
+                (isBlocked ? '⚠️ ' : '🔗 ') + escapeHtml(inst.boundNode.name) + '</div>'
+              : '') +
+            // 换 IP 按钮（仅 running 实例）
+            (inst.state === 'running'
+              ? '<button onclick="awsSwapIp(\'' + safeInstId + '\',\'' + safeInstType + '\',\'' + safeRegion + '\',' + safeAccId + ')" ' +
+                'class="mt-auto text-[10px] w-full py-1 rounded-lg text-center transition-colors ' +
+                (isBlocked
+                  ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                  : 'bg-white/5 text-gray-500 hover:bg-amber-500/20 hover:text-amber-300') + '">🔄 换 IP</button>'
+              : '<div class="mt-auto text-[10px] text-center text-gray-700 py-1">' + escapeHtml(inst.state) + '</div>') +
+            '</div>';
         }
         html += '</div></div>';
       }
@@ -240,68 +244,26 @@ async function loadAllInstances(force) {
   }
 }
 
-async function awsInstanceAction(action, instanceId, type, region, accountId) {
-  const actionNames = { start: '开机', stop: '关机', terminate: '终止', 'swap-ip': '换 IP' };
-  if (action === 'terminate') {
-    if (!await _confirm('确定终止实例 ' + instanceId + '？此操作不可恢复！')) return;
-  } else if (action === 'swap-ip') {
-    if (!await _confirm('确定给 ' + instanceId + ' 换 IP？')) return;
-  }
-  showToast('⏳ ' + actionNames[action] + '中...');
+async function awsSwapIp(instanceId, type, region, accountId) {
+  if (!await _confirm('确定给 ' + instanceId + ' 换 IP？')) return;
+  showToast('⏳ 换 IP 中...');
   try {
-    const res = await fetch('/admin/api/aws/' + action, {
+    const res = await fetch('/admin/api/aws/swap-ip', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ instanceId, type, region, accountId })
     });
     const data = await res.json();
     if (res.ok && (data.ok || data.success)) {
-      showToast('✅ ' + actionNames[action] + '成功' + (data.newIp ? ' 新IP: ' + data.newIp : ''));
+      showToast('✅ 换 IP 成功' + (data.newIp ? ' 新IP: ' + data.newIp : ''));
       setTimeout(() => loadAllInstances(true), 2000);
     } else {
-      showToast('❌ ' + (data.error || '操作失败'));
+      showToast('❌ ' + (data.error || '换 IP 失败'));
     }
   } catch (e) { showToast('❌ 网络错误'); }
 }
 
-function showLaunchModal() {
-  if (!window._awsAccounts || window._awsAccounts.length === 0) { showToast('请先新增 AWS 账号'); return; }
-  const sel = document.getElementById('launch-account-id');
-  sel.innerHTML = window._awsAccounts.map(a => '<option value="' + escapeHtml(a.id) + '">#' + escapeHtml(a.id) + ' ' + escapeHtml(a.name) + '</option>').join('');
-  updateLaunchSpecs();
-  document.getElementById('aws-launch-modal').classList.remove('hidden');
-}
-
-function updateLaunchSpecs() {
-  const type = document.getElementById('launch-type').value;
-  const sel = document.getElementById('launch-spec');
-  if (type === 'lightsail') {
-    sel.innerHTML = '<option value="nano_3_0">nano (512MB/$3.5)</option><option value="micro_3_0">micro (1GB/$5)</option><option value="small_3_0">small (2GB/$10)</option><option value="medium_3_0">medium (4GB/$20)</option>';
-  } else {
-    sel.innerHTML = '<option value="t4g.micro">t4g.micro (1C/1G)</option><option value="t4g.small">t4g.small (2C/2G)</option><option value="t4g.medium">t4g.medium (2C/4G)</option>';
-  }
-}
-
-async function confirmLaunch() {
-  const accountId = document.getElementById('launch-account-id').value;
-  const region = document.getElementById('launch-region').value;
-  const type = document.getElementById('launch-type').value;
-  const spec = document.getElementById('launch-spec').value;
-  const sshPassword = document.getElementById('launch-ssh-password').value;
-  if (!sshPassword) { showToast('请填写 SSH 密码'); return; }
-  const btn = document.getElementById('launch-btn');
-  btn.disabled = true; btn.textContent = '⏳ 创建中...';
-  try {
-    const res = await fetch('/admin/api/aws/launch-and-deploy', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId: parseInt(accountId), region, type, spec, sshPassword })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      showToast('🚀 正在后台创建并部署，请稍后刷新查看');
-      document.getElementById('aws-launch-modal').classList.add('hidden');
-    } else {
-      showToast('❌ ' + (data.error || '创建失败'));
-    }
-  } catch (e) { showToast('❌ 网络错误'); }
-  btn.disabled = false; btn.textContent = '🚀 创建并部署';
+// 保留旧函数名兼容（节点Tab的换IP按钮可能调用）
+async function awsInstanceAction(action, instanceId, type, region, accountId) {
+  if (action === 'swap-ip') return awsSwapIp(instanceId, type, region, accountId);
+  showToast('该操作已移除');
 }

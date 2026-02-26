@@ -356,10 +356,7 @@
   <div class="glass rounded-2xl p-5">
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-white text-sm font-medium">📊 实例仪表盘</h3>
-      <div class="flex items-center gap-2">
-        <button type="button" onclick="loadAllInstances(true)" class="text-xs glass text-gray-300 hover:text-white px-3 py-1.5 rounded-xl transition">🔄 刷新实例</button>
-        <button type="button" onclick="showLaunchModal()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl transition">➕ 新建实例</button>
-      </div>
+      <button type="button" onclick="loadAllInstances(true)" class="text-xs glass text-gray-300 hover:text-white px-3 py-1.5 rounded-xl transition">🔄 刷新实例</button>
     </div>
     <div id="aws-instances-loading" class="hidden text-center py-8 text-gray-500 text-sm">⏳ 加载中...</div>
     <div id="aws-instances-container" class="text-center py-8 text-gray-500 text-xs">点击「🔄 刷新实例」加载</div>
