@@ -5,7 +5,7 @@ function init(deps) {
 }
 
 function addAuditLog(userId, action, detail, ip) {
-  _getDb().prepare('INSERT INTO audit_log (user_id, action, detail, ip) VALUES (?, ?, ?, ?)').run(userId, action, detail, ip);
+  _getDb().prepare('INSERT INTO audit_log (user_id, action, detail, ip, created_at) VALUES (?, ?, ?, ?, datetime("now", "localtime"))').run(userId, action, detail, ip);
 }
 
 function getAuditLogs(limit = 50, offset = 0, type = 'all') {
