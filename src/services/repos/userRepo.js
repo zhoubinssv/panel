@@ -15,7 +15,7 @@ function findOrCreateUser(profile) {
   if (existing) {
     const wasFrozen = existing.is_frozen;
     _getDb().prepare(`
-      UPDATE users SET username = ?, name = ?, avatar_url = ?, trust_level = ?, email = ?, is_frozen = 0, last_login = datetime('now')
+      UPDATE users SET username = ?, name = ?, avatar_url = ?, trust_level = ?, email = ?, is_frozen = 0, last_login = datetime('now', 'localtime')
       WHERE nodeloc_id = ?
     `).run(profile.username, profile.name, profile.avatar_url, profile.trust_level, profile.email, profile.id);
     const user = _getDb().prepare('SELECT * FROM users WHERE nodeloc_id = ?').get(profile.id);
@@ -33,7 +33,7 @@ function findOrCreateUser(profile) {
 
   _getDb().prepare(`
     INSERT INTO users (nodeloc_id, username, name, avatar_url, trust_level, email, sub_token, is_admin, traffic_limit, last_login)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
   `).run(profile.id, profile.username, profile.name, profile.avatar_url, profile.trust_level, profile.email, subToken, isAdmin, defaultLimit);
 
   const newUser = _getDb().prepare('SELECT * FROM users WHERE nodeloc_id = ?').get(profile.id);

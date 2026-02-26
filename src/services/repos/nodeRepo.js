@@ -65,7 +65,7 @@ function deleteNode(id) {
 
 function updateNodeAfterRotation(id, newUuid, newPort) {
   _getDb().prepare(`
-    UPDATE nodes SET uuid = ?, port = ?, last_rotated = datetime('now') WHERE id = ?
+    UPDATE nodes SET uuid = ?, port = ?, last_rotated = datetime('now', 'localtime') WHERE id = ?
   `).run(newUuid, newPort, id);
 }
 

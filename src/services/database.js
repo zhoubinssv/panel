@@ -71,7 +71,7 @@ function initTables() {
       is_frozen INTEGER DEFAULT 0,
       traffic_limit INTEGER DEFAULT 0,
       max_devices INTEGER DEFAULT 3,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
       last_login TEXT
     );
 
@@ -79,7 +79,7 @@ function initTables() {
     CREATE TABLE IF NOT EXISTS whitelist (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
-      added_at TEXT DEFAULT (datetime('now'))
+      added_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
     -- 节点表
@@ -107,7 +107,7 @@ function initTables() {
       remark TEXT,
       last_rotated TEXT,
       last_check TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
     -- 审计日志
@@ -117,7 +117,7 @@ function initTables() {
       action TEXT NOT NULL,
       detail TEXT,
       ip TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
@@ -145,7 +145,7 @@ function initTables() {
       node_id INTEGER NOT NULL,
       uplink INTEGER DEFAULT 0,
       downlink INTEGER DEFAULT 0,
-      recorded_at TEXT DEFAULT (datetime('now')),
+      recorded_at TEXT DEFAULT (datetime('now', 'localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
     );
@@ -167,7 +167,7 @@ function initTables() {
       user_id INTEGER NOT NULL,
       ip TEXT NOT NULL,
       ua TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
   `);
@@ -182,7 +182,7 @@ function initTables() {
       ai_analysis TEXT,
       fix_commands TEXT,
       fix_result TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
       resolved_at TEXT,
       FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
     )
@@ -215,7 +215,7 @@ function initTables() {
     CREATE TABLE IF NOT EXISTS register_whitelist (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
-      added_at TEXT DEFAULT (datetime('now'))
+      added_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
   `);
 
@@ -281,7 +281,7 @@ function initTables() {
       id INTEGER PRIMARY KEY,
       telegram_id TEXT UNIQUE NOT NULL,
       username TEXT,
-      added_at TEXT DEFAULT (datetime('now'))
+      added_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
   `);
 
@@ -306,8 +306,8 @@ function initTables() {
       socks5_user TEXT,
       socks5_pass TEXT,
       enabled INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
   `);
 
@@ -318,7 +318,7 @@ function initTables() {
       content TEXT NOT NULL,
       mood TEXT DEFAULT '🐱',
       category TEXT DEFAULT 'ops',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
   `);
 
@@ -352,7 +352,7 @@ function initTables() {
     db.exec(`CREATE TABLE whitelist (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nodeloc_id INTEGER UNIQUE NOT NULL,
-      added_at TEXT DEFAULT (datetime('now'))
+      added_at TEXT DEFAULT (datetime('now', 'localtime'))
     )`);
   }
 

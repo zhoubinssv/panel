@@ -28,7 +28,7 @@ function getAwsAccountById(id) {
 function addAwsAccount(account) {
   return _getDb().prepare(`
     INSERT INTO aws_accounts (name, access_key, secret_key, default_region, socks5_host, socks5_port, socks5_user, socks5_pass, enabled, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
   `).run(
     account.name,
     encrypt(account.access_key),
