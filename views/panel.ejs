@@ -9,7 +9,7 @@
       </div>
       <div class="flex items-center gap-3">
         <span class="text-gray-300 text-sm hidden sm:block"><%= user.name || user.username %></span>
-        <a href="/donate" class="text-xs px-3 py-1.5 rounded-full bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition">🎁 捐赠</a>
+        <a href="/donate" class="text-xs px-3 py-1.5 rounded-full bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition">🎁 捐赠节点</a>
         <% if (user.is_admin) { %><a href="/admin" class="text-xs px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition">管理</a><% } %>
         <a href="/auth/logout" class="text-xs px-3 py-1.5 rounded-full glass text-gray-300 hover:text-red-400 transition">退出</a>
       </div>
