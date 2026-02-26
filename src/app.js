@@ -172,7 +172,7 @@ cron.schedule('0 4 * * *', async () => {
       db.addAuditLog(null, 'auto_freeze_expired', `自动冻结 ${expired.length} 个到期用户: ${expired.map(u => u.username).join(', ')}`, 'system');
       await deployService.syncAllNodesConfig(db);
     }
-    // 自动回收捐赠者标识：捐赠节点全部离线超过 7 天则回收
+    // 自动回收捐赠者标识：捐赠节点全部离线超过 48 小时则回收
     try {
       const donors = d.prepare('SELECT DISTINCT user_id FROM node_donations WHERE status = ?').all('online');
       for (const { user_id } of donors) {
@@ -192,13 +192,13 @@ cron.schedule('0 4 * * *', async () => {
           `).get(user_id)?.last;
 
           if (lastActive) {
-            const daysSince = (Date.now() - new Date(lastActive).getTime()) / 86400000;
-            if (daysSince >= 7) {
+            const hoursSince = (Date.now() - new Date(lastActive).getTime()) / 3600000;
+            if (hoursSince >= 48) {
               d.prepare('UPDATE users SET is_donor = 0 WHERE id = ? AND is_donor = 1').run(user_id);
               d.prepare("UPDATE node_donations SET status = 'offline' WHERE user_id = ? AND status = 'online'").run(user_id);
               const u = db.getUserById(user_id);
-              logger.info(`[捐赠回收] 用户 ${u?.username || user_id} 捐赠节点离线超7天，回收捐赠者标识`);
-              db.addAuditLog(null, 'donor_revoke', `回收捐赠者标识: ${u?.username || user_id} (节点离线超7天)`, 'system');
+              logger.info(`[捐赠回收] 用户 ${u?.username || user_id} 捐赠节点离线超48小时，回收捐赠者标识`);
+              db.addAuditLog(null, 'donor_revoke', `回收捐赠者标识: ${u?.username || user_id} (节点离线超48小时)`, 'system');
             }
           }
         }
