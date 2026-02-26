@@ -65,11 +65,25 @@
           <div>订阅链接下次重置：<span id="sub-reset-countdown" class="text-cyan-300">计算中...</span></div>
         </div>
       </div>
-      <div class="flex gap-2">
-        <input type="text" readonly value="<%= subUrl %>" id="sub-link"
-               class="flex-1 bg-black/30 text-rose-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
-        <button onclick="copySubLink()" class="bg-rose-600 hover:bg-rose-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
-        <button onclick="showSubQr()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
+      <div class="space-y-2">
+        <div>
+          <div class="text-[11px] text-gray-400 mb-1">🌐 IPv4 订阅（VLESS）</div>
+          <div class="flex gap-2">
+            <input type="text" readonly value="<%= subUrl %>" id="sub-link"
+                   class="flex-1 bg-black/30 text-rose-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
+            <button onclick="copySubLink()" class="bg-rose-600 hover:bg-rose-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
+            <button onclick="showSubQr()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
+          </div>
+        </div>
+        <div>
+          <div class="text-[11px] text-gray-400 mb-1">🌐 IPv6 订阅（Shadowsocks）</div>
+          <div class="flex gap-2">
+            <input type="text" readonly value="<%= subUrl6 %>" id="sub6-link"
+                   class="flex-1 bg-black/30 text-cyan-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
+            <button onclick="copySub6Link()" class="bg-cyan-600 hover:bg-cyan-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
+            <button onclick="showSub6Qr()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -178,6 +192,19 @@
       const modal = document.getElementById('sub-qr-modal');
       modal.classList.remove('flex');
       modal.classList.add('hidden');
+    }
+    function copySub6Link() {
+      navigator.clipboard.writeText(document.getElementById('sub6-link').value).then(() => toast('✅ IPv6 订阅链接已复制'));
+    }
+    function showSub6Qr() {
+      const link = document.getElementById('sub6-link').value;
+      const modal = document.getElementById('sub-qr-modal');
+      const img = document.getElementById('sub-qr-img');
+      document.getElementById('sub-qr-text').textContent = link;
+      // 用通用 QR 生成（复用同一弹窗，动态生成二维码）
+      img.src = '/sub6-qr?t=' + Date.now();
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
     }
 
     function filterNodes(keyword) {

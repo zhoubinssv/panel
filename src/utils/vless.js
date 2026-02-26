@@ -153,6 +153,83 @@ function fmtYaml(v) {
   return v;
 }
 
+// ========== Shadowsocks 订阅生成 ==========
+
+function buildSsLink(node) {
+  const method = node.ss_method || 'aes-256-gcm';
+  const password = node.ss_password || '';
+  const userinfo = Buffer.from(`${method}:${password}`).toString('base64');
+  // IPv6 地址用方括号包裹
+  const host = node.host.includes(':') ? `[${node.host}]` : node.host;
+  return `ss://${userinfo}@${host}:${node.port}#${encodeURIComponent(node.name)}`;
+}
+
+function buildSsInfoLink(text) {
+  const userinfo = Buffer.from('aes-256-gcm:00000000').toString('base64');
+  return `ss://${userinfo}@127.0.0.1:0#${encodeURIComponent(text)}`;
+}
+
+function generateV2raySsSub(nodes, trafficInfo) {
+  const infoLinks = [];
+  if (trafficInfo) {
+    infoLinks.push(buildSsInfoLink('🍑 小姨子的诱惑 | vip.vip.sd [IPv6]'));
+    const used = trafficInfo.upload + trafficInfo.download;
+    if (trafficInfo.total > 0) {
+      const remain = Math.max(0, trafficInfo.total - used);
+      infoLinks.push(buildSsInfoLink(`📊 剩余: ${formatBytes(remain)} | 已用: ${formatBytes(used)}`));
+    } else {
+      infoLinks.push(buildSsInfoLink(`📊 已用: ${formatBytes(used)} | 无限制`));
+    }
+  }
+  const links = [...infoLinks, ...nodes.map(n => buildSsLink(n))].join('\n');
+  return Buffer.from(links).toString('base64');
+}
+
+function generateClashSsSub(nodes) {
+  const proxies = nodes.map(n => ({
+    name: n.name, type: 'ss',
+    server: n.host, port: n.port,
+    cipher: n.ss_method || 'aes-256-gcm',
+    password: n.ss_password || '',
+    udp: true
+  }));
+
+  const proxyNames = nodes.map(n => n.name);
+  const config = {
+    'mixed-port': 7890, 'allow-lan': false, mode: 'rule', 'log-level': 'info',
+    proxies,
+    'proxy-groups': [
+      { name: '🚀 节点选择', type: 'select', proxies: ['♻️ 自动选择', ...proxyNames, 'DIRECT'] },
+      { name: '♻️ 自动选择', type: 'url-test', proxies: proxyNames, url: 'http://www.gstatic.com/generate_204', interval: 300 }
+    ],
+    rules: ['GEOIP,LAN,DIRECT', 'GEOIP,CN,DIRECT', 'MATCH,🚀 节点选择']
+  };
+  return clashConfigToYaml(config);
+}
+
+function generateSingboxSsSub(nodes) {
+  const outbounds = nodes.map(n => ({
+    tag: n.name, type: 'shadowsocks',
+    server: n.host, server_port: n.port,
+    method: n.ss_method || 'aes-256-gcm',
+    password: n.ss_password || ''
+  }));
+
+  const tags = nodes.map(n => n.name);
+  return JSON.stringify({
+    log: { level: 'info' },
+    outbounds: [
+      { tag: '🚀 节点选择', type: 'selector', outbounds: ['♻️ 自动选择', ...tags, 'direct'] },
+      { tag: '♻️ 自动选择', type: 'urltest', outbounds: tags, url: 'http://www.gstatic.com/generate_204', interval: '3m' },
+      ...outbounds,
+      { tag: 'direct', type: 'direct' },
+      { tag: 'block', type: 'block' },
+      { tag: 'dns-out', type: 'dns' }
+    ],
+    route: { auto_detect_interface: true, rules: [{ geoip: ['private', 'cn'], outbound: 'direct' }, { protocol: 'dns', outbound: 'dns-out' }], final: '🚀 节点选择' }
+  }, null, 2);
+}
+
 function detectClient(ua) {
   if (!ua) return 'v2ray';
   ua = ua.toLowerCase();
@@ -170,5 +247,6 @@ module.exports = {
   generateV2raySubForUser: generateV2raySub,
   generateClashSubForUser: generateClashSub,
   generateSingboxSubForUser: generateSingboxSub,
+  buildSsLink, generateV2raySsSub, generateClashSsSub, generateSingboxSsSub,
   detectClient, randomPort
 };

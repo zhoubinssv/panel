@@ -164,4 +164,21 @@ router.post('/nodes/:id/update-group', (req, res) => {
   res.json({ ok: true });
 });
 
+// 更新节点 SS/IPv6 配置
+router.post('/nodes/:id/update-ss', (req, res) => {
+  const id = parseIntId(req.params.id);
+  if (!id) return res.status(400).json({ error: '参数错误' });
+  const node = db.getNodeById(id);
+  if (!node) return res.status(404).json({ error: '节点不存在' });
+  const { protocol, ip_version, ss_method, ss_password } = req.body;
+  const updates = {};
+  if (protocol) updates.protocol = protocol;
+  if (ip_version !== undefined) updates.ip_version = parseInt(ip_version) || 4;
+  if (ss_method) updates.ss_method = ss_method;
+  if (ss_password !== undefined) updates.ss_password = ss_password;
+  db.updateNode(id, updates);
+  db.addAuditLog(req.user.id, 'node_update_ss', `${node.name} SS配置: protocol=${protocol}, ipv=${ip_version}`, req.ip);
+  res.json({ ok: true });
+});
+
 module.exports = router;

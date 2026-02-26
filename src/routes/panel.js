@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../services/database');
-const { buildVlessLink, generateV2raySubForUser, generateClashSubForUser, generateSingboxSubForUser, detectClient } = require('../utils/vless');
+const { buildVlessLink, generateV2raySubForUser, generateClashSubForUser, generateSingboxSubForUser, generateV2raySsSub, generateClashSsSub, generateSingboxSsSub, detectClient } = require('../utils/vless');
 const { formatBytes } = require('../services/traffic');
 const { requireAuth } = require('../middleware/auth');
 const { subLimiter } = require('../middleware/rateLimit');
@@ -123,6 +123,8 @@ router.get('/', requireAuth, (req, res) => {
     trafficLimit: user.traffic_limit || 0,
     nodeAiTags,
     subUrl: `${req.protocol}://${req.get('host')}/sub/${user.sub_token}`,
+    subUrl6: `${req.protocol}://${req.get('host')}/sub6/${user.sub_token}`,
+    subUrl6: `${req.protocol}://${req.get('host')}/sub6/${user.sub_token}`,
     nextUuidResetAt: nextUuidResetAtMs(),
     nextSubResetAt: nextTokenResetAtMs(),
     announcement: db.getSetting('announcement') || '',
@@ -207,6 +209,26 @@ router.get('/sub-qr', requireAuth, async (req, res) => {
     res.send(png);
   } catch (e) {
     console.error('[二维码] 生成失败:', e.message);
+    res.status(500).send('二维码生成失败');
+  }
+});
+
+// IPv6 订阅二维码
+router.get('/sub6-qr', requireAuth, async (req, res) => {
+  try {
+    const subUrl6 = `${req.protocol}://${req.get('host')}/sub6/${req.user.sub_token}`;
+    const png = await QRCode.toBuffer(subUrl6, {
+      width: 300,
+      margin: 1,
+      errorCorrectionLevel: 'M'
+    });
+    res.set({
+      'Content-Type': 'image/png',
+      'Cache-Control': 'no-store'
+    });
+    res.send(png);
+  } catch (e) {
+    console.error('[二维码] IPv6生成失败:', e.message);
     res.status(500).send('二维码生成失败');
   }
 });
@@ -312,6 +334,164 @@ router.get('/sub/:token', subLimiter, (req, res) => {
       'Cache-Control': 'no-cache'
     };
     const body = generateV2raySubForUser(finalNodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    res.set(headers);
+    res.send(body);
+  }
+});
+
+// ========== IPv6 Shadowsocks 订阅接口 ==========
+router.get('/sub6/:token', subLimiter, (req, res) => {
+  const token = req.params.token;
+  const ua = req.headers['user-agent'] || '';
+  const forceType = req.query.type;
+  const clientType = forceType || detectClient(ua);
+  const cacheKey = `v6:${token}:${clientType}`;
+  const clientIP = getRealClientIp(req);
+
+  const cached = _subCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < SUB_CACHE_TTL) {
+    const user = db.getUserBySubToken(token);
+    if (user) db.logSubAccess(user.id, clientIP, ua);
+    res.set(cached.headers);
+    return res.send(cached.body);
+  }
+
+  const user = db.getUserBySubToken(token);
+  if (!user) return res.status(403).send('无效的订阅链接');
+
+  db.logSubAccess(user.id, clientIP, ua);
+
+  const isVip = db.isInWhitelist(user.nodeloc_id);
+  // 只取 IPv6 + SS 节点
+  const nodes = db.getAllNodes(true).filter(n =>
+    n.ip_version === 6 && n.protocol === 'ss' &&
+    (isVip || user.trust_level >= (n.min_level || 0))
+  );
+
+  const traffic = db.getUserTraffic(user.id);
+  const trafficLimit = user.traffic_limit || 0;
+  const totalBytes = trafficLimit > 0 ? trafficLimit : 1125899906842624;
+  const exceeded = trafficLimit > 0 && (traffic.total_up + traffic.total_down) >= trafficLimit;
+
+  db.addAuditLog(user.id, 'sub6_fetch', `IPv6订阅拉取 [${clientType}] IP: ${clientIP}`, clientIP);
+
+  const finalNodes = exceeded ? [] : nodes;
+  const subInfo = `upload=${traffic.total_up}; download=${traffic.total_down}; total=${totalBytes}; expire=0`;
+  const panelName = encodeURIComponent('小姨子的诱惑-IPv6');
+
+  if (clientType === 'clash') {
+    const headers = {
+      'Content-Type': 'text/yaml; charset=utf-8',
+      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
+      'Profile-Update-Interval': '6',
+      'Subscription-Userinfo': subInfo,
+      'Cache-Control': 'no-cache'
+    };
+    const body = generateClashSsSub(finalNodes);
+    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    res.set(headers);
+    return res.send(body);
+  }
+
+  if (clientType === 'singbox') {
+    const headers = {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
+      'Subscription-Userinfo': subInfo,
+      'Cache-Control': 'no-cache'
+    };
+    const body = generateSingboxSsSub(finalNodes);
+    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    res.set(headers);
+    return res.send(body);
+  }
+
+  {
+    const headers = {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
+      'Subscription-Userinfo': subInfo,
+      'Cache-Control': 'no-cache'
+    };
+    const body = generateV2raySsSub(finalNodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    res.set(headers);
+    res.send(body);
+  }
+});
+
+// ========== IPv6 Shadowsocks 订阅接口 ==========
+router.get('/sub6/:token', subLimiter, (req, res) => {
+  const token = req.params.token;
+  const ua = req.headers['user-agent'] || '';
+  const forceType = req.query.type;
+  const clientType = forceType || detectClient(ua);
+  const cacheKey = `v6:${token}:${clientType}`;
+
+  const clientIP = getRealClientIp(req);
+
+  // 检查缓存
+  const cached = _subCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < SUB_CACHE_TTL) {
+    const user = db.getUserBySubToken(token);
+    if (user) db.logSubAccess(user.id, clientIP, ua);
+    res.set(cached.headers);
+    return res.send(cached.body);
+  }
+
+  const user = db.getUserBySubToken(token);
+  if (!user) return res.status(403).send('无效的订阅链接');
+
+  db.logSubAccess(user.id, clientIP, ua);
+
+  // 滥用检测
+  const ips = db.getSubAccessIPs(user.id, 24);
+  if (ips.length >= 20) {
+    const now = Date.now();
+    const last = _abuseCache.get(user.id) || 0;
+    if (now - last > 3600000) {
+      _abuseCache.set(user.id, now);
+      for (const [k, v] of _abuseCache) { if (now - v > 3600000) _abuseCache.delete(k); }
+      notify.abuse(user.username, ips.length);
+    }
+  }
+
+  // 只取 IPv6 SS 节点
+  const isVip = db.isInWhitelist(user.nodeloc_id);
+  const allNodes = db.getAllNodes(true).filter(n => isVip || user.trust_level >= (n.min_level || 0));
+  const nodes = allNodes.filter(n => n.ip_version === 6 && n.protocol === 'ss');
+
+  const traffic = db.getUserTraffic(user.id);
+  const trafficLimit = user.traffic_limit || 0;
+  const totalBytes = trafficLimit > 0 ? trafficLimit : 1125899906842624;
+  const exceeded = trafficLimit > 0 && (traffic.total_up + traffic.total_down) >= trafficLimit;
+
+  db.addAuditLog(user.id, 'sub_fetch', `IPv6 SS 订阅拉取 [${clientType}] IP: ${clientIP}`, clientIP);
+
+  const finalNodes = exceeded ? [] : nodes;
+  const subInfo = `upload=${traffic.total_up}; download=${traffic.total_down}; total=${totalBytes}; expire=0`;
+  const panelName = encodeURIComponent('小姨子的诱惑-IPv6');
+
+  if (clientType === 'clash') {
+    const headers = { 'Content-Type': 'text/yaml; charset=utf-8', 'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`, 'Profile-Update-Interval': '6', 'Subscription-Userinfo': subInfo, 'Cache-Control': 'no-cache' };
+    const body = generateClashSsSub(finalNodes);
+    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    res.set(headers);
+    return res.send(body);
+  }
+
+  if (clientType === 'singbox') {
+    const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`, 'Subscription-Userinfo': subInfo, 'Cache-Control': 'no-cache' };
+    const body = generateSingboxSsSub(finalNodes);
+    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    res.set(headers);
+    return res.send(body);
+  }
+
+  {
+    const headers = { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`, 'Subscription-Userinfo': subInfo, 'Cache-Control': 'no-cache' };
+    const body = generateV2raySsSub(finalNodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes });
     _subCache.set(cacheKey, { headers, body, ts: Date.now() });
     res.set(headers);
     res.send(body);

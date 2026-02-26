@@ -388,6 +388,29 @@ function initTables() {
     try { db.exec("ALTER TABLE nodes ADD COLUMN tags TEXT DEFAULT ''"); } catch(_){}
   }
 
+  // IPv6 SS 支持
+  if (!nodeCols2.includes('ss_method')) {
+    try { db.exec("ALTER TABLE nodes ADD COLUMN ss_method TEXT DEFAULT 'aes-256-gcm'"); } catch(_){}
+  }
+  if (!nodeCols2.includes('ss_password')) {
+    try { db.exec("ALTER TABLE nodes ADD COLUMN ss_password TEXT"); } catch(_){}
+  }
+  if (!nodeCols2.includes('ip_version')) {
+    try { db.exec("ALTER TABLE nodes ADD COLUMN ip_version INTEGER DEFAULT 4"); } catch(_){}
+  }
+
+  // IPv6 SS 迁移
+  const nodeCols3 = db.prepare("PRAGMA table_info(nodes)").all().map(c => c.name);
+  if (!nodeCols3.includes('ss_method')) {
+    try { db.exec("ALTER TABLE nodes ADD COLUMN ss_method TEXT DEFAULT 'aes-256-gcm'"); } catch(_){}
+  }
+  if (!nodeCols3.includes('ss_password')) {
+    try { db.exec("ALTER TABLE nodes ADD COLUMN ss_password TEXT"); } catch(_){}
+  }
+  if (!nodeCols3.includes('ip_version')) {
+    try { db.exec("ALTER TABLE nodes ADD COLUMN ip_version INTEGER DEFAULT 4"); } catch(_){}
+  }
+
   // Sprint 6 迁移：用户到期时间
   const userCols2 = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
   if (!userCols2.includes('expires_at')) {
