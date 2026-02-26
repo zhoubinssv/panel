@@ -179,22 +179,22 @@
 
       <!-- 协议滑块 -->
       <div class="col-span-2 flex items-center gap-6 py-2">
-        <label class="flex items-center gap-2 cursor-pointer select-none">
-          <div class="relative">
-            <input type="checkbox" name="enable_vless" checked class="sr-only peer" onchange="updateDeployHint()">
-            <div class="w-10 h-5 bg-gray-600 rounded-full peer-checked:bg-rose-500 transition"></div>
-            <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-5 transition"></div>
+        <div class="flex items-center gap-2 cursor-pointer select-none" onclick="toggleDeploy('vless')">
+          <input type="checkbox" name="enable_vless" checked style="position:absolute;width:0;height:0;opacity:0">
+          <div id="sw-vless" style="position:relative;width:40px;height:22px;flex-shrink:0">
+            <div id="sw-vless-track" style="position:absolute;inset:0;background:#e11d48;border-radius:11px;transition:background 0.2s"></div>
+            <div id="sw-vless-thumb" style="position:absolute;top:2px;left:2px;width:18px;height:18px;background:white;border-radius:50%;transition:transform 0.2s;transform:translateX(18px)"></div>
           </div>
           <span class="text-sm text-white">VLESS <span class="text-gray-400 text-xs">IPv4</span></span>
-        </label>
-        <label class="flex items-center gap-2 cursor-pointer select-none">
-          <div class="relative">
-            <input type="checkbox" name="enable_ss" class="sr-only peer" onchange="updateDeployHint()">
-            <div class="w-10 h-5 bg-gray-600 rounded-full peer-checked:bg-cyan-500 transition"></div>
-            <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-5 transition"></div>
+        </div>
+        <div class="flex items-center gap-2 cursor-pointer select-none" onclick="toggleDeploy('ss')">
+          <input type="checkbox" name="enable_ss" style="position:absolute;width:0;height:0;opacity:0">
+          <div id="sw-ss" style="position:relative;width:40px;height:22px;flex-shrink:0">
+            <div id="sw-ss-track" style="position:absolute;inset:0;background:#4b5563;border-radius:11px;transition:background 0.2s"></div>
+            <div id="sw-ss-thumb" style="position:absolute;top:2px;left:2px;width:18px;height:18px;background:white;border-radius:50%;transition:transform 0.2s;transform:translateX(0)"></div>
           </div>
           <span class="text-sm text-white">Shadowsocks <span class="text-gray-400 text-xs">IPv6</span></span>
-        </label>
+        </div>
       </div>
 
       <!-- SS 加密方式（SS 开启时显示） -->
@@ -229,6 +229,22 @@
 <script nonce="<%= nonce %>">
 // CSRF token
 const _csrf = '<%= csrfToken %>';
+
+// 滑块开关切换
+function toggleDeploy(type) {
+  var cb = document.querySelector('[name="enable_' + type + '"]');
+  cb.checked = !cb.checked;
+  var track = document.getElementById('sw-' + type + '-track');
+  var thumb = document.getElementById('sw-' + type + '-thumb');
+  if (cb.checked) {
+    track.style.background = type === 'vless' ? '#e11d48' : '#06b6d4';
+    thumb.style.transform = 'translateX(18px)';
+  } else {
+    track.style.background = '#4b5563';
+    thumb.style.transform = 'translateX(0)';
+  }
+  updateDeployHint();
+}
 
 // 部署模式提示更新
 function updateDeployHint() {
