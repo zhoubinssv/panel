@@ -466,7 +466,7 @@ function createRawWs(urlStr) {
 
   let upgraded = false;
   let buffer = Buffer.alloc(0);
-  let fragmented = null;
+  let fragmented = null; // { opcode, chunks: Buffer[] }
 
   socket.on('data', (chunk) => {
     buffer = Buffer.concat([buffer, chunk]);
