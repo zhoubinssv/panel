@@ -6,6 +6,12 @@ const { emitSyncAll } = require('../services/configEvents');
 
 const router = express.Router();
 
+// 临时登录状态（进程内）
+const tempLoginState = {
+  used: false,
+  failCount: 0,
+};
+
 // 登录页
 router.get('/login', (req, res) => {
   res.render('login', { error: req.query.error || '' });
@@ -60,6 +66,7 @@ function safeTokenEqual(a, b) {
 // 用法：/auth/temp-login?token=xxxx
 // 需要环境变量：TEMP_LOGIN_ENABLED=true + TEMP_LOGIN_TOKEN=xxxx
 // 可选过期时间：TEMP_LOGIN_EXPIRES_AT=毫秒时间戳
+// 安全策略：最多失败5次；成功一次后立即失效（一次性）
 router.get('/temp-login', (req, res) => {
   if (process.env.TEMP_LOGIN_ENABLED !== 'true') {
     return res.status(404).send('Not Found');
@@ -75,7 +82,14 @@ router.get('/temp-login', (req, res) => {
   if (expiresAt > 0 && Date.now() > expiresAt) {
     return res.status(403).send('临时登录已过期');
   }
+  if (tempLoginState.used) {
+    return res.status(403).send('临时登录口令已使用');
+  }
+  if (tempLoginState.failCount >= 5) {
+    return res.status(429).send('临时登录尝试次数过多');
+  }
   if (!safeTokenEqual(token, expected)) {
+    tempLoginState.failCount += 1;
     return res.status(403).send('token 无效');
   }
 
@@ -91,8 +105,9 @@ router.get('/temp-login', (req, res) => {
 
   req.logIn(user, (err) => {
     if (err) return res.status(500).send('登录失败');
+    tempLoginState.used = true;
     const loginIP = req.headers['cf-connecting-ip'] || req.headers['x-real-ip'] || req.ip;
-    db.addAuditLog(user.id, 'temp_login', `临时通道登录 ${user.username}`, loginIP);
+    db.addAuditLog(user.id, 'temp_login', `临时通道登录 ${user.username}（一次性口令）`, loginIP);
     res.redirect('/admin');
   });
 });

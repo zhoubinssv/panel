@@ -1,4 +1,5 @@
 const express = require('express');
+const net = require('net');
 const db = require('../../services/database');
 const deployService = require('../../services/deploy');
 const agentWs = require('../../services/agent-ws');
@@ -9,9 +10,11 @@ function parseIntId(raw) {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-const HOST_RE = /^[a-zA-Z0-9._-]{1,253}$/;
+const DOMAIN_RE = /^(?=.{1,253}$)(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$/;
 function isValidHost(host) {
-  return typeof host === 'string' && HOST_RE.test(host.trim());
+  if (typeof host !== 'string') return false;
+  const h = host.trim();
+  return net.isIP(h) !== 0 || DOMAIN_RE.test(h);
 }
 
 const router = express.Router();

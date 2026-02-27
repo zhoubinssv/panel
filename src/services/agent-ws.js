@@ -111,7 +111,8 @@ function bindDonationToNode(ws, donation, ip, version, capabilities) {
   autoFixVlessIpv4(donateNodeId, donateNode);
 }
 
-async function autoApproveDonation({ ws, d, donation, ip, protoChoice, tempId }) {
+async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
+  const d = db.getDb();
   try {
     if (protoChoice === 'ss' || protoChoice === 'dual') {
       try {
@@ -201,9 +202,13 @@ async function autoApproveDonation({ ws, d, donation, ip, protoChoice, tempId })
       }
 
       if (nodeIds.length > 0) {
-        d.prepare("UPDATE node_donations SET status = 'online', node_id = ?, region = ?, approved_at = datetime('now', 'localtime') WHERE id = ?")
-          .run(nodeIds[0], region, donation.id);
-        d.prepare('UPDATE users SET is_donor = 1 WHERE id = ?').run(freshDonation.user_id);
+        const tx = d.transaction(() => {
+          d.prepare("UPDATE node_donations SET status = 'online', node_id = ?, region = ?, approved_at = datetime('now', 'localtime') WHERE id = ?")
+            .run(nodeIds[0], region, donation.id);
+          d.prepare('UPDATE users SET is_donor = 1 WHERE id = ?').run(freshDonation.user_id);
+        });
+        tx();
+
         db.addAuditLog(null, 'donate_auto_approve', `🍑 蜜桃酱自动审核通过: ${ip}, 协议: ${protoChoice}, 捐赠者: ${donorName}`, 'system');
 
         const mainNodeId = nodeIds[0];
@@ -273,7 +278,7 @@ function handleDonationAuth(ws, msg) {
     const tempId = `donate-${donation.id}`;
     agents.set(tempId, { ws, nodeId: tempId, nodeName: `捐赠#${donation.id}`, ip, connectedAt: bjNow(), lastReport: null, reportData: null, _pongReceived: true });
 
-    setTimeout(() => autoApproveDonation({ ws, d, donation, ip, protoChoice, tempId }), 5000);
+    setTimeout(() => autoApproveDonation({ ws, donation, ip, protoChoice, tempId }), 5000);
   }
 
   try {
