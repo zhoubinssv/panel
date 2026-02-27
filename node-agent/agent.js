@@ -336,7 +336,7 @@ async function handleCommand(msg) {
 
     case 'self_update': {
       try {
-        const updateUrl = msg.url || `${config.server.replace(/\/ws\/agent$/, '')}/api/agent/download`;
+        const updateUrl = msg.url || `${config.server.replace(/\/ws\/agent$/, '').replace(/^wss:/, 'https:').replace(/^ws:/, 'http:')}/api/agent/download`;
         log('更新', `从 ${updateUrl} 下载新版 agent...`);
         const code = await httpGet(updateUrl);
         const tmpPath = AGENT_PATH + '.tmp';

@@ -28,8 +28,9 @@ router.post('/agents/update-all', async (req, res) => {
   const agents = agentWs.getConnectedAgents();
   if (agents.length === 0) return res.json({ ok: true, results: [], message: '无在线 Agent' });
 
+  const downloadUrl = `https://${req.get('host')}/api/agent/download`;
   const results = await Promise.all(agents.map(async (a) => {
-    const r = await agentWs.sendCommand(a.nodeId, { type: 'self_update' });
+    const r = await agentWs.sendCommand(a.nodeId, { type: 'self_update', url: downloadUrl });
     return { nodeId: a.nodeId, name: a.nodeName, success: r.success, error: r.error };
   }));
 
