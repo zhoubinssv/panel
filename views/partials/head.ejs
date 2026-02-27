@@ -26,6 +26,9 @@
     .data-table tbody tr:nth-child(even){background:rgba(255,255,255,0.015)}
     .data-table tbody tr:hover{background:rgba(255,255,255,0.04)!important}
     .glow{box-shadow:0 0 40px rgba(244,63,94,0.12),0 8px 32px rgba(0,0,0,0.3)}
+    :root{--ease-soft:cubic-bezier(.22,.61,.36,1);--dur-fast:.16s;--dur-mid:.24s}
+    .anim-fade-up{animation:fadeUp .35s var(--ease-soft)}
+    @keyframes fadeUp{from{opacity:.0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
     .toast-container{position:fixed;top:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none}
     .toast{padding:.75rem 1.5rem;border-radius:1rem;color:#fff;font-size:.875rem;opacity:0;transform:translateY(-10px);transition:all .3s;pointer-events:none;backdrop-filter:blur(20px);background:rgba(34,197,94,0.85);box-shadow:0 4px 20px rgba(34,197,94,0.3);max-width:360px;word-break:break-word}
     .toast.toast-error{background:rgba(239,68,68,0.85);box-shadow:0 4px 20px rgba(239,68,68,0.3)}
@@ -36,11 +39,20 @@
     .btn-loading::after{content:'';position:absolute;right:8px;top:50%;width:14px;height:14px;margin-top:-7px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
     @media(max-width:640px){.vless-link{font-size:10px;word-break:break-all;line-height:1.4}.node-card-grid{grid-template-columns:1fr !important}}
+    @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none !important;transition:none !important;scroll-behavior:auto !important}}
     .scrollbar-hide::-webkit-scrollbar{display:none}.scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
     .stat-card{position:relative;overflow:hidden}
     .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent-color),transparent);opacity:.8}
     .stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:40px;background:linear-gradient(180deg,color-mix(in srgb,var(--accent-color) 6%,transparent),transparent);pointer-events:none}
-    input,select,textarea{transition:all .2s}
+    input,select,textarea{transition:all var(--dur-mid) var(--ease-soft)}
+    button,.tab-btn,.btn-primary,.btn-secondary,.btn-info,.btn-danger{transition:transform var(--dur-fast) var(--ease-soft),box-shadow var(--dur-mid) var(--ease-soft),background-color var(--dur-mid) var(--ease-soft),color var(--dur-mid) var(--ease-soft),opacity var(--dur-mid) var(--ease-soft)}
+    button:hover,.tab-btn:hover,.btn-primary:hover,.btn-secondary:hover,.btn-info:hover,.btn-danger:hover{transform:translateY(-1px)}
+    button:active,.tab-btn:active,.btn-primary:active,.btn-secondary:active,.btn-info:active,.btn-danger:active{transform:translateY(0) scale(.985)}
+    .glass,.glass-solid{transition:transform var(--dur-mid) var(--ease-soft),border-color var(--dur-mid) var(--ease-soft),background-color var(--dur-mid) var(--ease-soft),box-shadow var(--dur-mid) var(--ease-soft)}
+    .node-card:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04)}
+    .tab-btn.active{box-shadow:inset 0 0 0 1px rgba(244,63,94,.25),0 6px 18px rgba(244,63,94,.14)}
+    .action-menu > div{transform-origin:top right;animation:scaleIn .16s var(--ease-soft)}
+    @keyframes scaleIn{from{opacity:0;transform:scale(.96) translateY(-2px)}to{opacity:1;transform:scale(1) translateY(0)}}
     select,select option{background:#1a1520;color:#d1d5db}
     input:focus,select:focus,textarea:focus{border-color:rgba(244,63,94,0.5) !important;outline:none;box-shadow:0 0 0 3px rgba(244,63,94,0.1),0 0 20px rgba(244,63,94,0.05)}
     ::-webkit-scrollbar{width:5px}
