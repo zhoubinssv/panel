@@ -64,7 +64,7 @@
       <div class="flex items-center justify-between mb-3 flex-wrap gap-1.5">
         <div class="flex items-center gap-2 text-[11px]">
           <h2 class="<%= user.is_donor ? 'text-amber-300' : 'text-white' %> font-semibold text-sm">📡 个人订阅</h2>
-          <span class="text-gray-600">🍑 已运行 <span class="text-gray-400"><%= _runDays %></span> 天 · Lv.<%= user.trust_level || 0 %><%= user.is_donor ? ' · 🎁捐赠者' : '' %></span>
+          <span class="text-gray-600">🍑 已运行 <span class="text-gray-400"><%= _runDays %></span> 天 · Lv.<%= user.trust_level || 0 %><%= user.is_donor ? ' · 👑 捐赠者' : '' %></span>
         </div>
         <div class="text-[11px] text-gray-400">
           UUID 重置：<span id="uuid-reset-countdown" class="text-rose-300">计算中...</span> <span class="text-gray-600">(每天)</span> · 订阅重置：<span id="sub-reset-countdown" class="text-cyan-300">计算中...</span> <span class="text-gray-600">(<%= _resetLabels[Math.min(user.trust_level || 0, 4)] %><%= (user.trust_level < 3 && user.is_donor) ? '·捐赠者享每月' : '' %>)</span>
