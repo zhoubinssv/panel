@@ -251,76 +251,34 @@ router.get('/sub-qr/:type?', requireAuth, async (req, res) => {
 // 兼容旧路径
 router.get('/sub6-qr', requireAuth, async (req, res) => sendSubQr(req, res, 'v6'));
 
-// 订阅接口（每个用户返回自己的 UUID）
-router.get('/sub/:token', subLimiter, (req, res) => {
-  const token = req.params.token;
-  const ua = req.headers['user-agent'] || '';
+function maybeNotifySubAbuse(userId, username) {
+  const ips = db.getSubAccessIPs(userId, 24);
+  if (ips.length < 20) return;
 
-  // 拒绝空 UA 请求（防止订阅聚合/转换工具拉取）
-  if (!ua.trim()) {
-    return res.status(403).type('text').send('User-Agent is required');
+  const now = Date.now();
+  const last = _abuseCache.get(userId) || 0;
+  if (now - last <= 3600000) return;
+
+  _abuseCache.set(userId, now);
+  for (const [k, v] of _abuseCache) {
+    if (now - v > 3600000) _abuseCache.delete(k);
   }
+  notify.abuse(username, ips.length);
+}
 
-  const forceType = req.query.type;
-  const clientType = forceType || detectClient(ua);
-  const cacheKey = `${token}:${clientType}`;
-
-  // 记录拉取 IP（始终执行，不受缓存影响）
-  const clientIP = getRealClientIp(req);
-
-  // 检查缓存
-  const cached = _subCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < SUB_CACHE_TTL) {
-    if (cached.userId) db.logSubAccess(cached.userId, clientIP, ua);
-    res.set(cached.headers);
-    return res.send(cached.body);
-  }
-
-  const user = db.getUserBySubToken(token);
-  if (!user) return res.status(403).send('无效的订阅链接');
-  if (user.trust_level < 1 && !db.isInWhitelist(user.nodeloc_id)) return res.status(403).send('账号等级不足，请在 NodeLoc 论坛升级到1级后使用');
-
-  db.logSubAccess(user.id, clientIP, ua);
-
-  // 滥用检测：24h 内 ≥20 个不同 IP 触发通知（同一用户1小时内只通知一次）
-  const ips = db.getSubAccessIPs(user.id, 24);
-  if (ips.length >= 20) {
-    
-    const now = Date.now();
-    const last = _abuseCache.get(user.id) || 0;
-    if (now - last > 3600000) {
-      _abuseCache.set(user.id, now);
-      // 清理过期条目
-      for (const [k, v] of _abuseCache) { if (now - v > 3600000) _abuseCache.delete(k); }
-      
-      notify.abuse(user.username, ips.length);
-    }
-  }
-
-  const userNodes = db.getUserNodesWithUuids(user.id, true).filter(n => n.protocol !== 'ss');
-
-  // 获取用户流量用于 Subscription-Userinfo
-  const traffic = db.getUserTraffic(user.id);
-  const trafficLimit = user.traffic_limit || 0;
-  const totalBytes = trafficLimit > 0 ? trafficLimit : 1125899906842624; // 默认 1PB
-  const exceeded = trafficLimit > 0 && (traffic.total_up + traffic.total_down) >= trafficLimit;
-
-  // 流量超额则返回空节点列表
-  const finalNodes = exceeded ? [] : userNodes;
-  const subInfo = `upload=${traffic.total_up}; download=${traffic.total_down}; total=${totalBytes}; expire=0`;
-
-  const panelName = encodeURIComponent('小姨子的诱惑');
+function respondSubscriptionByClient({ res, clientType, cacheKey, userId, panelName, subInfo, nodes, traffic, totalBytes, generators }) {
+  const encodedPanelName = encodeURIComponent(panelName);
 
   if (clientType === 'clash') {
     const headers = {
       'Content-Type': 'text/yaml; charset=utf-8',
-      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodedPanelName}`,
       'Profile-Update-Interval': '6',
       'Subscription-Userinfo': subInfo,
       'Cache-Control': 'no-cache'
     };
-    const body = generateClashSubForUser(finalNodes);
-    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
+    const body = generators.clash(nodes);
+    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId });
     res.set(headers);
     return res.send(body);
   }
@@ -328,12 +286,12 @@ router.get('/sub/:token', subLimiter, (req, res) => {
   if (clientType === 'singbox') {
     const headers = {
       'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodedPanelName}`,
       'Subscription-Userinfo': subInfo,
       'Cache-Control': 'no-cache'
     };
-    const body = generateSingboxSubForUser(finalNodes);
-    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
+    const body = generators.singbox(nodes);
+    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId });
     res.set(headers);
     return res.send(body);
   }
@@ -341,30 +299,27 @@ router.get('/sub/:token', subLimiter, (req, res) => {
   {
     const headers = {
       'Content-Type': 'text/plain; charset=utf-8',
-      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodedPanelName}`,
       'Subscription-Userinfo': subInfo,
       'Cache-Control': 'no-cache'
     };
-    const body = generateV2raySubForUser(finalNodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes });
-    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
+    const body = generators.v2ray(nodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId });
     res.set(headers);
-    res.send(body);
+    return res.send(body);
   }
-});
+}
 
-// ========== IPv6 Shadowsocks 订阅接口 ==========
-router.get('/sub6/:token', subLimiter, (req, res) => {
+function handleSubscription(req, res, options) {
   const token = req.params.token;
   const ua = req.headers['user-agent'] || '';
-
-  // 拒绝空 UA 请求
   if (!ua.trim()) {
     return res.status(403).type('text').send('User-Agent is required');
   }
 
   const forceType = req.query.type;
   const clientType = forceType || detectClient(ua);
-  const cacheKey = `v6:${token}:${clientType}`;
+  const cacheKey = `${options.cachePrefix || ''}${token}:${clientType}`;
   const clientIP = getRealClientIp(req);
 
   const cached = _subCache.get(cacheKey);
@@ -376,64 +331,63 @@ router.get('/sub6/:token', subLimiter, (req, res) => {
 
   const user = db.getUserBySubToken(token);
   if (!user) return res.status(403).send('无效的订阅链接');
-  if (user.trust_level < 1 && !db.isInWhitelist(user.nodeloc_id)) return res.status(403).send('账号等级不足，请在 NodeLoc 论坛升级到1级后使用');
+  if (user.trust_level < 1 && !db.isInWhitelist(user.nodeloc_id)) {
+    return res.status(403).send('账号等级不足，请在 NodeLoc 论坛升级到1级后使用');
+  }
 
   db.logSubAccess(user.id, clientIP, ua);
+  if (options.enableAbuseDetect) {
+    maybeNotifySubAbuse(user.id, user.username);
+  }
 
-  // 只取 IPv6 + SS 节点（已在查询层完成权限过滤）
-  const nodes = db.getUserNodesWithUuids(user.id, true)
-    .filter(n => n.ip_version === 6 && n.protocol === 'ss')
-    .map(n => ({ ...n, userPassword: n.uuid }));
-
+  const nodes = options.pickNodes(user);
   const traffic = db.getUserTraffic(user.id);
   const trafficLimit = user.traffic_limit || 0;
   const totalBytes = trafficLimit > 0 ? trafficLimit : 1125899906842624;
   const exceeded = trafficLimit > 0 && (traffic.total_up + traffic.total_down) >= trafficLimit;
-
   const finalNodes = exceeded ? [] : nodes;
   const subInfo = `upload=${traffic.total_up}; download=${traffic.total_down}; total=${totalBytes}; expire=0`;
-  const panelName = encodeURIComponent('小姨子的诱惑-IPv6');
 
-  if (clientType === 'clash') {
-    const headers = {
-      'Content-Type': 'text/yaml; charset=utf-8',
-      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
-      'Profile-Update-Interval': '6',
-      'Subscription-Userinfo': subInfo,
-      'Cache-Control': 'no-cache'
-    };
-    const body = generateClashSsSub(finalNodes);
-    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
-    res.set(headers);
-    return res.send(body);
-  }
+  return respondSubscriptionByClient({
+    res,
+    clientType,
+    cacheKey,
+    userId: user.id,
+    panelName: options.panelName,
+    subInfo,
+    nodes: finalNodes,
+    traffic,
+    totalBytes,
+    generators: options.generators,
+  });
+}
 
-  if (clientType === 'singbox') {
-    const headers = {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
-      'Subscription-Userinfo': subInfo,
-      'Cache-Control': 'no-cache'
-    };
-    const body = generateSingboxSsSub(finalNodes);
-    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
-    res.set(headers);
-    return res.send(body);
+// 订阅接口（每个用户返回自己的 UUID）
+router.get('/sub/:token', subLimiter, (req, res) => handleSubscription(req, res, {
+  panelName: '小姨子的诱惑',
+  enableAbuseDetect: true,
+  pickNodes: (user) => db.getUserNodesWithUuids(user.id, true).filter(n => n.protocol !== 'ss'),
+  generators: {
+    clash: (nodes) => generateClashSubForUser(nodes),
+    singbox: (nodes) => generateSingboxSubForUser(nodes),
+    v2ray: (nodes, usage) => generateV2raySubForUser(nodes, usage)
   }
+}));
 
-  {
-    const headers = {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Content-Disposition': `attachment; filename*=UTF-8''${panelName}`,
-      'Subscription-Userinfo': subInfo,
-      'Cache-Control': 'no-cache'
-    };
-    const body = generateV2raySsSub(finalNodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes });
-    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
-    res.set(headers);
-    res.send(body);
+// ========== IPv6 Shadowsocks 订阅接口 ==========
+router.get('/sub6/:token', subLimiter, (req, res) => handleSubscription(req, res, {
+  panelName: '小姨子的诱惑-IPv6',
+  cachePrefix: 'v6:',
+  enableAbuseDetect: false,
+  pickNodes: (user) => db.getUserNodesWithUuids(user.id, true)
+    .filter(n => n.ip_version === 6 && n.protocol === 'ss')
+    .map(n => ({ ...n, userPassword: n.uuid })),
+  generators: {
+    clash: (nodes) => generateClashSsSub(nodes),
+    singbox: (nodes) => generateSingboxSsSub(nodes),
+    v2ray: (nodes, usage) => generateV2raySsSub(nodes, usage)
   }
-});
+}));
 
 // 在线用户数（从巡检缓存读取）
 router.get('/online-count', requireAuth, (req, res) => {
