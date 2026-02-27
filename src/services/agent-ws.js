@@ -194,268 +194,260 @@ function handleMessage(ws, msg) {
  * 处理认证
  */
 function handleAuth(ws, msg) {
-  const { token, nodeId, version, capabilities } = msg;
+  const { token } = msg;
 
   if (!token) {
     return ws.close(4004, '缺少 token');
   }
 
-  // ─── 捐赠节点认证 ───
   if (token.startsWith('donate-')) {
-    const d = db.getDb();
-    const ip = ws._agentState.ip;
-    // 先查已有的捐赠记录
-    let donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
-    if (!donation) {
-      // 从令牌表查找用户，Agent 首次连接时才创建捐赠记录
-      const tokenRecord = d.prepare('SELECT * FROM donate_tokens WHERE token = ?').get(token);
-      if (!tokenRecord) {
-        return ws.close(4005, '无效的捐赠令牌');
-      }
-      d.prepare("INSERT INTO node_donations (user_id, token, server_ip, status, protocol_choice) VALUES (?, ?, ?, 'pending', ?)").run(tokenRecord.user_id, token, ip, tokenRecord.protocol_choice || 'vless');
-      donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
-    } else {
-      // 更新 IP，已审核通过的不改状态
-      if (donation.status === 'online') {
-        d.prepare("UPDATE node_donations SET server_ip = ? WHERE id = ?").run(ip, donation.id);
-      } else {
-        d.prepare("UPDATE node_donations SET server_ip = ?, status = 'pending' WHERE id = ?").run(ip, donation.id);
-      }
-    }
-    clearTimeout(ws._authTimer);
-    ws._agentState.authenticated = true;
-    ws._agentState.isDonation = true;
-
-    if (donation.status === 'online' && donation.node_id) {
-      // 已审核通过，绑定到实际节点
-      const donateNodeId = donation.node_id;
-      ws._agentState.nodeId = donateNodeId;
-
-      // 踢掉旧连接
-      const oldDonate = agents.get(donateNodeId);
-      if (oldDonate && oldDonate.ws !== ws) {
-        try { oldDonate.ws.close(4007, '被新连接替代'); } catch {}
-      }
-
-      // 注册到 agents Map，使 sendCommand 可用
-      const donateNode = db.getNodeById(donateNodeId);
-      agents.set(donateNodeId, {
-        ws,
-        nodeId: donateNodeId,
-        nodeName: donateNode ? donateNode.name : `捐赠#${donation.id}`,
-        ip,
-        connectedAt: bjNow(),
-        lastReport: null,
-        reportData: null,
-        version: version || null,
-        capabilities: capabilities || null,
-        _pongReceived: true,
-      });
-
-      ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已上线' }));
-      console.log(`[Agent-WS] 捐赠节点重连 node#${donateNodeId} from ${ip}`);
-
-      // 自动修正：VLESS 捐赠节点 host 是 IPv6 时，检测 IPv4 并修正
-      if (donateNode && donateNode.protocol === 'vless' && donateNode.host && donateNode.host.includes(':')) {
-        setTimeout(async () => {
-          try {
-            const result = await sendCommand(donateNodeId, { type: 'exec', command: 'curl -4 -s --max-time 5 ifconfig.me' });
-            const ipv4 = result.success && result.data?.stdout?.trim();
-            if (ipv4 && /^\d+\.\d+\.\d+\.\d+$/.test(ipv4)) {
-              db.updateNode(donateNodeId, { host: ipv4 });
-              console.log(`[🍑 蜜桃酱] VLESS 捐赠节点 #${donateNodeId} IPv4 修正: ${donateNode.host} → ${ipv4}`);
-              // 重新同步配置
-              const deploy = require('./deploy');
-              const freshNode = db.getNodeById(donateNodeId);
-              deploy.syncNodeConfig(freshNode, db).catch(() => {});
-            }
-          } catch (e) {
-            console.log(`[🍑 蜜桃酱] IPv4 修正失败: ${e.message}`);
-          }
-        }, 3000);
-      }
-    } else {
-      ws._agentState.nodeId = `donate-${donation.id}`;
-      ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已连接，蜜桃酱正在自动审核...' }));
-      console.log(`[Agent-WS] 捐赠节点连接 from ${ip}, 用户#${donation.user_id}, 令牌: ${token}`);
-      db.addAuditLog(donation.user_id, 'donate_connect', `捐赠节点连接: IP ${ip}`, ip);
-
-      // 🍑 蜜桃酱自动审核：5秒后自动通过（等地区检测+IPv6检测完成）
-      const protoChoice = donation.protocol_choice || 'vless';
-
-      // 注册临时Agent连接以便发命令
-      const tempId = `donate-${donation.id}`;
-      agents.set(tempId, { ws, nodeId: tempId, nodeName: `捐赠#${donation.id}`, ip, connectedAt: bjNow(), lastReport: null, reportData: null, _pongReceived: true });
-
-      setTimeout(async () => {
-        try {
-          // IPv6 检测（SS/双协议需要）
-          if (protoChoice === 'ss' || protoChoice === 'dual') {
-            try {
-              const result = await sendCommand(tempId, { type: 'exec', command: "ip -6 addr show scope global | grep inet6 | head -1 | awk '{print $2}' | cut -d/ -f1" });
-              const ipv6 = result.success && result.data?.stdout?.trim();
-              if (ipv6) {
-                d.prepare('UPDATE node_donations SET remark = ? WHERE id = ?').run(`IPv6: ${ipv6}`, donation.id);
-                console.log(`[Agent-WS] 捐赠节点 IPv6 检测成功: ${ipv6}`);
-              } else {
-                const failMsg = protoChoice === 'ss' ? '❌ 未检测到 IPv6，无法部署 SS 节点' : '⚠️ 未检测到 IPv6，仅支持 VLESS';
-                d.prepare('UPDATE node_donations SET remark = ? WHERE id = ?').run(failMsg, donation.id);
-                console.log(`[Agent-WS] 捐赠节点 ${ip} 无 IPv6 (选择: ${protoChoice})`);
-              }
-            } catch (e) {
-              console.error(`[Agent-WS] IPv6 检测异常:`, e.message);
-            }
-          }
-
-          // 自动审核通过
-          const freshDonation = d.prepare('SELECT * FROM node_donations WHERE id = ?').get(donation.id);
-          if (freshDonation && freshDonation.status === 'pending') {
-            console.log(`[🍑 蜜桃酱] 自动审核捐赠节点 #${donation.id} from ${ip}`);
-
-            // 直接调用审核逻辑（复用 adminDonations 的核心逻辑）
-            const deploy = require('./deploy');
-            const uuidRepo = require('./repos/uuidRepo');
-
-            // 检测地区（可能已经在异步检测中完成了）
-            let region = freshDonation.region || '';
-            if (!region && ip) {
-              try {
-                const geo = await deploy.detectRegion(ip);
-                if (geo && geo.cityCN !== '未知') region = `${geo.emoji} ${geo.cityCN}`;
-              } catch {}
-            }
-
-            // 查捐赠者用户名
-            const donor = d.prepare('SELECT username, name FROM users WHERE id = ?').get(freshDonation.user_id);
-            const donorName = donor ? (donor.name || donor.username) : `用户${freshDonation.user_id}`;
-            const nodeIds = [];
-
-            // 创建 VLESS 节点（vless 或 dual）
-            if (protoChoice === 'vless' || protoChoice === 'dual') {
-              // 检测服务器 IPv4 地址（Agent 可能通过 IPv6 连接）
-              let vlessHost = ip;
-              try {
-                const ipv4Result = await sendCommand(tempId, { type: 'exec', command: 'curl -4 -s --max-time 5 ifconfig.me' });
-                const detectedIpv4 = ipv4Result.success && ipv4Result.data?.stdout?.trim();
-                if (detectedIpv4 && /^\d+\.\d+\.\d+\.\d+$/.test(detectedIpv4)) {
-                  vlessHost = detectedIpv4;
-                  console.log(`[🍑 蜜桃酱] VLESS IPv4 检测: ${detectedIpv4}`);
-                }
-              } catch (e) {
-                console.log(`[🍑 蜜桃酱] IPv4 检测失败，使用连接 IP: ${ip}`);
-              }
-
-              const nodeName = region ? `${region}-${donorName}` : donorName;
-              const port = 10000 + Math.floor(Math.random() * 50000);
-              const agentToken = uuidv4();
-              const nodeResult = d.prepare(`
-                INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, is_active, agent_token, group_name, remark, is_donation, ssh_host)
-                VALUES (?, ?, ?, ?, 'vless', 4, 1, ?, '捐赠节点', '', 1, ?)
-              `).run(nodeName, vlessHost, port, uuidv4(), agentToken, ip);
-              const nodeId = Number(nodeResult.lastInsertRowid);
-              nodeIds.push(nodeId);
-
-              // 生成 Reality 密钥
-              const { publicKey, privateKey } = crypto.generateKeyPairSync('x25519');
-              const privRaw = privateKey.export({ type: 'pkcs8', format: 'der' }).slice(-32);
-              const pubRaw = publicKey.export({ type: 'spki', format: 'der' }).slice(-32);
-              db.updateNode(nodeId, {
-                reality_private_key: privRaw.toString('base64url'),
-                reality_public_key: pubRaw.toString('base64url'),
-                reality_short_id: crypto.randomBytes(4).toString('hex'),
-                sni: 'www.microsoft.com'
-              });
-              uuidRepo.ensureAllUsersHaveUuid(nodeId);
-            }
-
-            // 创建 SS 节点（ss 或 dual，需要有 IPv6）
-            if (protoChoice === 'ss' || protoChoice === 'dual') {
-              const freshRemark = d.prepare('SELECT remark FROM node_donations WHERE id = ?').get(donation.id)?.remark || '';
-              const ipv6Match = freshRemark.match(/IPv6:\s*(\S+)/);
-              if (ipv6Match) {
-                const ipv6Addr = ipv6Match[1];
-                const ssName = protoChoice === 'dual'
-                  ? (region ? `${region}-${donorName}⁶` : `${donorName}⁶`)
-                  : (region ? `${region}-${donorName}` : donorName);
-                const ssPort = 10000 + Math.floor(Math.random() * 50000);
-                const ssResult = d.prepare(`
-                  INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, ss_method, is_active, agent_token, group_name, remark, is_donation, ssh_host)
-                  VALUES (?, ?, ?, ?, 'ss', 6, 'aes-256-gcm', 1, ?, '捐赠节点', '', 1, ?)
-                `).run(ssName, ipv6Addr, ssPort, uuidv4(), uuidv4(), ip);
-                const ssNodeId = Number(ssResult.lastInsertRowid);
-                nodeIds.push(ssNodeId);
-                uuidRepo.ensureAllUsersHaveUuid(ssNodeId);
-              }
-            }
-
-            if (nodeIds.length > 0) {
-              // 更新捐赠记录
-              d.prepare("UPDATE node_donations SET status = 'online', node_id = ?, region = ?, approved_at = datetime('now', 'localtime') WHERE id = ?")
-                .run(nodeIds[0], region, donation.id);
-              d.prepare('UPDATE users SET is_donor = 1 WHERE id = ?').run(freshDonation.user_id);
-              db.addAuditLog(null, 'donate_auto_approve', `🍑 蜜桃酱自动审核通过: ${ip}, 协议: ${protoChoice}, 捐赠者: ${donorName}`, 'system');
-
-              // 绑定Agent到新节点并推送配置
-              const mainNodeId = nodeIds[0];
-              ws._agentState.nodeId = mainNodeId;
-              const node = db.getNodeById(mainNodeId);
-              agents.delete(tempId);
-              agents.set(mainNodeId, { ws, nodeId: mainNodeId, nodeName: node?.name || `捐赠#${donation.id}`, ip, connectedAt: bjNow(), lastReport: null, reportData: null, _pongReceived: true });
-
-              // 推送配置
-              for (const nid of nodeIds) {
-                try {
-                  const n = db.getNodeById(nid);
-                  const ok = await deploy.syncNodeConfig(n, db);
-                  console.log(`[🍑 蜜桃酱] 配置推送 ${ok ? '✅' : '❌'}: ${n.name}`);
-                } catch (e) {
-                  console.error(`[🍑 蜜桃酱] 配置推送异常: ${e.message}`);
-                }
-              }
-
-              // TG 通知
-              try {
-                const { notify: _notify } = require('./notify');
-                _notify.deploy && _notify.deploy(node?.name || ip, true, `🍑 蜜桃酱自动审核 | 协议: ${protoChoice} | 捐赠者: ${donorName}`);
-              } catch {}
-
-              console.log(`[🍑 蜜桃酱] 自动审核完成: ${nodeIds.length} 个节点上线`);
-            }
-          }
-        } catch (e) {
-          console.error(`[🍑 蜜桃酱] 自动审核异常:`, e.message, e.stack);
-        }
-      }, 5000); // 等5秒：让地区检测和IPv6检测先完成
-    }
-    // 异步检测地区
-    try {
-      const { detectRegion } = require('./deploy');
-      detectRegion(ip).then(geo => {
-        if (geo && geo.city !== 'Unknown') {
-          const region = `${geo.emoji} ${geo.cityCN}`;
-          d.prepare('UPDATE node_donations SET region = ? WHERE id = ?').run(region, donation.id);
-          console.log(`[Agent-WS] 捐赠节点地区检测: ${ip} → ${region}`);
-        }
-      }).catch(() => {});
-    } catch {}
-    if (donation.status !== 'online') {
-      notify.donateConnect && notify.donateConnect(ip, donation.user_id);
-    }
-    return;
+    return handleDonationAuth(ws, msg);
   }
 
-  // ─── 正常节点认证 ───
+  return handleNormalAuth(ws, msg);
+}
+
+function handleDonationAuth(ws, msg) {
+  const { token, version, capabilities } = msg;
+  const d = db.getDb();
+  const ip = ws._agentState.ip;
+  let donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
+
+  if (!donation) {
+    const tokenRecord = d.prepare('SELECT * FROM donate_tokens WHERE token = ?').get(token);
+    if (!tokenRecord) {
+      return ws.close(4005, '无效的捐赠令牌');
+    }
+    d.prepare("INSERT INTO node_donations (user_id, token, server_ip, status, protocol_choice) VALUES (?, ?, ?, 'pending', ?)").run(tokenRecord.user_id, token, ip, tokenRecord.protocol_choice || 'vless');
+    donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
+  } else if (donation.status === 'online') {
+    d.prepare("UPDATE node_donations SET server_ip = ? WHERE id = ?").run(ip, donation.id);
+  } else {
+    d.prepare("UPDATE node_donations SET server_ip = ?, status = 'pending' WHERE id = ?").run(ip, donation.id);
+  }
+
+  clearTimeout(ws._authTimer);
+  ws._agentState.authenticated = true;
+  ws._agentState.isDonation = true;
+
+  if (donation.status === 'online' && donation.node_id) {
+    bindDonationToNode(ws, donation, ip, version, capabilities);
+  } else {
+    const protoChoice = donation.protocol_choice || 'vless';
+    const tempId = `donate-${donation.id}`;
+
+    ws._agentState.nodeId = tempId;
+    ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已连接，蜜桃酱正在自动审核...' }));
+    console.log(`[Agent-WS] 捐赠节点连接 from ${ip}, 用户#${donation.user_id}, 令牌: ${token}`);
+    db.addAuditLog(donation.user_id, 'donate_connect', `捐赠节点连接: IP ${ip}`, ip);
+
+    agents.set(tempId, { ws, nodeId: tempId, nodeName: `捐赠#${donation.id}`, ip, connectedAt: bjNow(), lastReport: null, reportData: null, _pongReceived: true });
+    setTimeout(() => autoApproveDonation({ ws, donation, d, ip, protoChoice, tempId }), 5000);
+  }
+
+  try {
+    const { detectRegion } = require('./deploy');
+    detectRegion(ip).then(geo => {
+      if (geo && geo.city !== 'Unknown') {
+        const region = `${geo.emoji} ${geo.cityCN}`;
+        d.prepare('UPDATE node_donations SET region = ? WHERE id = ?').run(region, donation.id);
+        console.log(`[Agent-WS] 捐赠节点地区检测: ${ip} → ${region}`);
+      }
+    }).catch(() => {});
+  } catch {}
+
+  if (donation.status !== 'online') {
+    notify.donateConnect && notify.donateConnect(ip, donation.user_id);
+  }
+  return;
+}
+
+function bindDonationToNode(ws, donation, ip, version, capabilities) {
+  const donateNodeId = donation.node_id;
+  ws._agentState.nodeId = donateNodeId;
+
+  const oldDonate = agents.get(donateNodeId);
+  if (oldDonate && oldDonate.ws !== ws) {
+    try { oldDonate.ws.close(4007, '被新连接替代'); } catch {}
+  }
+
+  const donateNode = db.getNodeById(donateNodeId);
+  agents.set(donateNodeId, {
+    ws,
+    nodeId: donateNodeId,
+    nodeName: donateNode ? donateNode.name : `捐赠#${donation.id}`,
+    ip,
+    connectedAt: bjNow(),
+    lastReport: null,
+    reportData: null,
+    version: version || null,
+    capabilities: capabilities || null,
+    _pongReceived: true,
+  });
+
+  ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已上线' }));
+  console.log(`[Agent-WS] 捐赠节点重连 node#${donateNodeId} from ${ip}`);
+
+  if (donateNode && donateNode.protocol === 'vless' && donateNode.host && donateNode.host.includes(':')) {
+    autoFixVlessIpv4(donateNodeId, donateNode);
+  }
+}
+
+function autoFixVlessIpv4(donateNodeId, donateNode) {
+  setTimeout(async () => {
+    try {
+      const result = await sendCommand(donateNodeId, { type: 'exec', command: 'curl -4 -s --max-time 5 ifconfig.me' });
+      const ipv4 = result.success && result.data?.stdout?.trim();
+      if (ipv4 && /^\d+\.\d+\.\d+\.\d+$/.test(ipv4)) {
+        db.updateNode(donateNodeId, { host: ipv4 });
+        console.log(`[🍑 蜜桃酱] VLESS 捐赠节点 #${donateNodeId} IPv4 修正: ${donateNode.host} → ${ipv4}`);
+        const deploy = require('./deploy');
+        const freshNode = db.getNodeById(donateNodeId);
+        deploy.syncNodeConfig(freshNode, db).catch(() => {});
+      }
+    } catch (e) {
+      console.log(`[🍑 蜜桃酱] IPv4 修正失败: ${e.message}`);
+    }
+  }, 3000);
+}
+
+async function autoApproveDonation({ ws, donation, d, ip, protoChoice, tempId }) {
+  try {
+    if (protoChoice === 'ss' || protoChoice === 'dual') {
+      try {
+        const result = await sendCommand(tempId, { type: 'exec', command: "ip -6 addr show scope global | grep inet6 | head -1 | awk '{print $2}' | cut -d/ -f1" });
+        const ipv6 = result.success && result.data?.stdout?.trim();
+        if (ipv6) {
+          d.prepare('UPDATE node_donations SET remark = ? WHERE id = ?').run(`IPv6: ${ipv6}`, donation.id);
+          console.log(`[Agent-WS] 捐赠节点 IPv6 检测成功: ${ipv6}`);
+        } else {
+          const failMsg = protoChoice === 'ss' ? '❌ 未检测到 IPv6，无法部署 SS 节点' : '⚠️ 未检测到 IPv6，仅支持 VLESS';
+          d.prepare('UPDATE node_donations SET remark = ? WHERE id = ?').run(failMsg, donation.id);
+          console.log(`[Agent-WS] 捐赠节点 ${ip} 无 IPv6 (选择: ${protoChoice})`);
+        }
+      } catch (e) {
+        console.error(`[Agent-WS] IPv6 检测异常:`, e.message);
+      }
+    }
+
+    const freshDonation = d.prepare('SELECT * FROM node_donations WHERE id = ?').get(donation.id);
+    if (!(freshDonation && freshDonation.status === 'pending')) return;
+
+    console.log(`[🍑 蜜桃酱] 自动审核捐赠节点 #${donation.id} from ${ip}`);
+    const deploy = require('./deploy');
+    const uuidRepo = require('./repos/uuidRepo');
+
+    let region = freshDonation.region || '';
+    if (!region && ip) {
+      try {
+        const geo = await deploy.detectRegion(ip);
+        if (geo && geo.cityCN !== '未知') region = `${geo.emoji} ${geo.cityCN}`;
+      } catch {}
+    }
+
+    const donor = d.prepare('SELECT username, name FROM users WHERE id = ?').get(freshDonation.user_id);
+    const donorName = donor ? (donor.name || donor.username) : `用户${freshDonation.user_id}`;
+    const nodeIds = [];
+
+    if (protoChoice === 'vless' || protoChoice === 'dual') {
+      let vlessHost = ip;
+      try {
+        const ipv4Result = await sendCommand(tempId, { type: 'exec', command: 'curl -4 -s --max-time 5 ifconfig.me' });
+        const detectedIpv4 = ipv4Result.success && ipv4Result.data?.stdout?.trim();
+        if (detectedIpv4 && /^\d+\.\d+\.\d+\.\d+$/.test(detectedIpv4)) {
+          vlessHost = detectedIpv4;
+          console.log(`[🍑 蜜桃酱] VLESS IPv4 检测: ${detectedIpv4}`);
+        }
+      } catch (e) {
+        console.log(`[🍑 蜜桃酱] IPv4 检测失败，使用连接 IP: ${ip}`);
+      }
+
+      const nodeName = region ? `${region}-${donorName}` : donorName;
+      const port = 10000 + Math.floor(Math.random() * 50000);
+      const agentToken = uuidv4();
+      const nodeResult = d.prepare(`
+        INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, is_active, agent_token, group_name, remark, is_donation, ssh_host)
+        VALUES (?, ?, ?, ?, 'vless', 4, 1, ?, '捐赠节点', '', 1, ?)
+      `).run(nodeName, vlessHost, port, uuidv4(), agentToken, ip);
+      const nodeId = Number(nodeResult.lastInsertRowid);
+      nodeIds.push(nodeId);
+
+      const { publicKey, privateKey } = crypto.generateKeyPairSync('x25519');
+      const privRaw = privateKey.export({ type: 'pkcs8', format: 'der' }).slice(-32);
+      const pubRaw = publicKey.export({ type: 'spki', format: 'der' }).slice(-32);
+      db.updateNode(nodeId, {
+        reality_private_key: privRaw.toString('base64url'),
+        reality_public_key: pubRaw.toString('base64url'),
+        reality_short_id: crypto.randomBytes(4).toString('hex'),
+        sni: 'www.microsoft.com'
+      });
+      uuidRepo.ensureAllUsersHaveUuid(nodeId);
+    }
+
+    if (protoChoice === 'ss' || protoChoice === 'dual') {
+      const freshRemark = d.prepare('SELECT remark FROM node_donations WHERE id = ?').get(donation.id)?.remark || '';
+      const ipv6Match = freshRemark.match(/IPv6:\s*(\S+)/);
+      if (ipv6Match) {
+        const ipv6Addr = ipv6Match[1];
+        const ssName = protoChoice === 'dual'
+          ? (region ? `${region}-${donorName}⁶` : `${donorName}⁶`)
+          : (region ? `${region}-${donorName}` : donorName);
+        const ssPort = 10000 + Math.floor(Math.random() * 50000);
+        const ssResult = d.prepare(`
+          INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, ss_method, is_active, agent_token, group_name, remark, is_donation, ssh_host)
+          VALUES (?, ?, ?, ?, 'ss', 6, 'aes-256-gcm', 1, ?, '捐赠节点', '', 1, ?)
+        `).run(ssName, ipv6Addr, ssPort, uuidv4(), uuidv4(), ip);
+        const ssNodeId = Number(ssResult.lastInsertRowid);
+        nodeIds.push(ssNodeId);
+        uuidRepo.ensureAllUsersHaveUuid(ssNodeId);
+      }
+    }
+
+    if (nodeIds.length > 0) {
+      d.prepare("UPDATE node_donations SET status = 'online', node_id = ?, region = ?, approved_at = datetime('now', 'localtime') WHERE id = ?")
+        .run(nodeIds[0], region, donation.id);
+      d.prepare('UPDATE users SET is_donor = 1 WHERE id = ?').run(freshDonation.user_id);
+      db.addAuditLog(null, 'donate_auto_approve', `🍑 蜜桃酱自动审核通过: ${ip}, 协议: ${protoChoice}, 捐赠者: ${donorName}`, 'system');
+
+      const mainNodeId = nodeIds[0];
+      ws._agentState.nodeId = mainNodeId;
+      const node = db.getNodeById(mainNodeId);
+      agents.delete(tempId);
+      agents.set(mainNodeId, { ws, nodeId: mainNodeId, nodeName: node?.name || `捐赠#${donation.id}`, ip, connectedAt: bjNow(), lastReport: null, reportData: null, _pongReceived: true });
+
+      for (const nid of nodeIds) {
+        try {
+          const n = db.getNodeById(nid);
+          const ok = await deploy.syncNodeConfig(n, db);
+          console.log(`[🍑 蜜桃酱] 配置推送 ${ok ? '✅' : '❌'}: ${n.name}`);
+        } catch (e) {
+          console.error(`[🍑 蜜桃酱] 配置推送异常: ${e.message}`);
+        }
+      }
+
+      try {
+        const { notify: _notify } = require('./notify');
+        _notify.deploy && _notify.deploy(node?.name || ip, true, `🍑 蜜桃酱自动审核 | 协议: ${protoChoice} | 捐赠者: ${donorName}`);
+      } catch {}
+
+      console.log(`[🍑 蜜桃酱] 自动审核完成: ${nodeIds.length} 个节点上线`);
+    }
+  } catch (e) {
+    console.error(`[🍑 蜜桃酱] 自动审核异常:`, e.message, e.stack);
+  }
+}
+
+function handleNormalAuth(ws, msg) {
+  const { token, nodeId, version, capabilities } = msg;
   if (!nodeId) {
     return ws.close(4004, '缺少 nodeId');
   }
 
-  // 验证节点存在
   const node = db.getNodeById(nodeId);
   if (!node) {
     return ws.close(4006, '节点不存在');
   }
 
-  // 优先检查节点独立 token，回退到全局 token（兼容旧 agent）
   const nodeToken = node.agent_token;
   const globalToken = db.getSetting('agent_token');
   if (token !== nodeToken && token !== globalToken) {
@@ -463,7 +455,6 @@ function handleAuth(ws, msg) {
     return ws.close(4005, '认证失败');
   }
 
-  // 踢掉旧连接
   const old = agents.get(nodeId);
   if (old && old.ws !== ws) {
     try { old.ws.close(4007, '被新连接替代'); } catch {}
@@ -495,8 +486,6 @@ function handleAuth(ws, msg) {
 
   ws.send(JSON.stringify({ type: 'auth_ok' }));
   console.log(`[Agent-WS] 节点 #${nodeId} (${node.name}) 认证成功`);
-
-  // 记录系统日志（Agent 上线不再单独发 TG 通知，由 report 上报恢复时通知）
   db.addAuditLog(null, 'agent_online', `节点 Agent 上线: ${node.name} (${ws._agentState.ip})`, 'system');
 }
 
