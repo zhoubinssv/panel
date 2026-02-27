@@ -9,6 +9,29 @@ const _nodeFailCount = new Map();
 // Xray 自动拉起冷却（避免频繁重启）：nodeId -> lastRestartMs
 const _xrayRestartCooldown = new Map();
 
+function tryAutoRestartXray(nodeId, nodeName, reason = '') {
+  const nowMs = Date.now();
+  const lastRestart = _xrayRestartCooldown.get(nodeId) || 0;
+  const cooldownMs = 10 * 60 * 1000;
+  if (nowMs - lastRestart < cooldownMs) return;
+
+  _xrayRestartCooldown.set(nodeId, nowMs);
+  (async () => {
+    try {
+      const agentWs = require('./agent-ws');
+      if (!agentWs.isAgentOnline(nodeId)) return;
+      const r = await agentWs.sendCommand(nodeId, { type: 'restart_xray' });
+      if (r.success) {
+        db.addAuditLog(null, 'auto_repair', `${nodeName}: 自动拉起 Xray 成功${reason ? `(${reason})` : ''}`, 'system');
+      } else {
+        db.addAuditLog(null, 'auto_repair_fail', `${nodeName}: 自动拉起 Xray 失败${reason ? `(${reason})` : ''}: ${r.error || 'unknown'}`, 'system');
+      }
+    } catch (e) {
+      db.addAuditLog(null, 'auto_repair_fail', `${nodeName}: 自动拉起 Xray 异常${reason ? `(${reason})` : ''}: ${e.message}`, 'system');
+    }
+  })();
+}
+
 // TCP 端口探测
 function checkPort(host, port, timeout = 5000) {
   return new Promise((resolve) => {
@@ -71,6 +94,11 @@ function saveTrafficRecords(nodeId, records) {
 function checkTrafficExceed() {
   try {
     const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); // Asia/Shanghai
+    // 清理历史缓存键，避免长期运行内存缓慢增长
+    for (const key of _trafficNotifiedCache) {
+      if (!key.endsWith(`_${today}`)) _trafficNotifiedCache.delete(key);
+    }
+
     const todayTraffic = db.getDb().prepare(`
       SELECT t.user_id, u.username, SUM(t.uplink) as total_up, SUM(t.downlink) as total_down
       FROM traffic_daily t JOIN users u ON t.user_id = u.id
@@ -217,26 +245,7 @@ function updateFromAgentReport(nodeId, reportData) {
 
       // Xray 离线：Agent 在线时尝试自动拉起（带冷却）
       if (remark.includes('Xray 离线')) {
-        const nowMs = Date.now();
-        const lastRestart = _xrayRestartCooldown.get(nodeId) || 0;
-        const cooldownMs = 10 * 60 * 1000;
-        if (nowMs - lastRestart >= cooldownMs) {
-          _xrayRestartCooldown.set(nodeId, nowMs);
-          (async () => {
-            try {
-              const agentWs = require('./agent-ws');
-              if (!agentWs.isAgentOnline(nodeId)) return;
-              const r = await agentWs.sendCommand(nodeId, { type: 'restart_xray' });
-              if (r.success) {
-                db.addAuditLog(null, 'auto_repair', `${node.name}: 自动拉起 Xray 成功`, 'system');
-              } else {
-                db.addAuditLog(null, 'auto_repair_fail', `${node.name}: 自动拉起 Xray 失败: ${r.error || 'unknown'}`, 'system');
-              }
-            } catch (e) {
-              db.addAuditLog(null, 'auto_repair_fail', `${node.name}: 自动拉起 Xray 异常: ${e.message}`, 'system');
-            }
-          })();
-        }
+        tryAutoRestartXray(nodeId, node.name);
       }
 
       // 被墙且绑 AWS：自动换 IP
@@ -280,26 +289,7 @@ function updateFromAgentReport(nodeId, reportData) {
     }
     // newFailCount > FAIL_THRESHOLD: 已经通知过了，静默更新状态即可
     if (newFailCount > FAIL_THRESHOLD && remark.includes('Xray 离线')) {
-      const nowMs = Date.now();
-      const lastRestart = _xrayRestartCooldown.get(nodeId) || 0;
-      const cooldownMs = 10 * 60 * 1000;
-      if (nowMs - lastRestart >= cooldownMs) {
-        _xrayRestartCooldown.set(nodeId, nowMs);
-        (async () => {
-          try {
-            const agentWs = require('./agent-ws');
-            if (!agentWs.isAgentOnline(nodeId)) return;
-            const r = await agentWs.sendCommand(nodeId, { type: 'restart_xray' });
-            if (r.success) {
-              db.addAuditLog(null, 'auto_repair', `${node.name}: 自动拉起 Xray 成功(冷却重试)`, 'system');
-            } else {
-              db.addAuditLog(null, 'auto_repair_fail', `${node.name}: 自动拉起 Xray 失败(冷却重试): ${r.error || 'unknown'}`, 'system');
-            }
-          } catch (e) {
-            db.addAuditLog(null, 'auto_repair_fail', `${node.name}: 自动拉起 Xray 异常(冷却重试): ${e.message}`, 'system');
-          }
-        })();
-      }
+      tryAutoRestartXray(nodeId, node.name, '冷却重试');
     }
   } else {
     // 恢复在线：清零计数
