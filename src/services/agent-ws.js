@@ -259,10 +259,6 @@ function handleAuth(ws, msg) {
     return ws.close(4004, '缺少 token');
   }
 
-  if (token.startsWith('donate-')) {
-    return ws.close(4005, '捐赠节点功能已下线');
-  }
-
   return handleNormalAuth(ws, msg);
 }
 
