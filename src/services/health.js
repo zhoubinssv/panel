@@ -8,8 +8,8 @@ const _trafficNotifiedCache = new Set();
 const _nodeFailCount = new Map();
 // Xray 自动拉起冷却（避免频繁重启）：nodeId -> lastRestartMs
 const _xrayRestartCooldown = new Map();
-// 捐赠节点 tag 前缀缓存：nodeId -> Map(prefix8 -> userId)
-const _donationTagUserCache = new Map();
+// tag 前缀缓存：nodeId -> Map(prefix8 -> userId)
+const _tagUserCache = new Map();
 
 function tryAutoRestartXray(nodeId, nodeName, reason = '') {
   const nowMs = Date.now();
@@ -51,27 +51,27 @@ function checkPort(host, port, timeout = 5000) {
 const _onlineCache = { full: null, summary: null, ts: 0 };
 function getOnlineCache() { return _onlineCache; }
 
-function buildDonationTagCache(nodeId) {
+function buildTagUserCache(nodeId) {
   const map = new Map();
   try {
     const rows = db.getDb().prepare('SELECT user_id, uuid FROM user_node_uuid WHERE node_id = ?').all(nodeId);
     for (const row of rows) map.set(row.uuid.slice(0, 8), row.user_id);
   } catch {}
-  _donationTagUserCache.set(nodeId, map);
+  _tagUserCache.set(nodeId, map);
   return map;
 }
 
-function resolveDonationTagUserId(nodeId, tag) {
+function resolveTagUserId(nodeId, tag) {
   if (!tag) return null;
   const prefix = String(tag).slice(0, 8);
-  let nodeCache = _donationTagUserCache.get(nodeId);
-  if (!nodeCache) nodeCache = buildDonationTagCache(nodeId);
+  let nodeCache = _tagUserCache.get(nodeId);
+  if (!nodeCache) nodeCache = buildTagUserCache(nodeId);
 
   const hit = nodeCache.get(prefix);
   if (hit) return hit;
 
   // 缓存未命中时兜底刷新一次，避免新 UUID 还没进缓存
-  nodeCache = buildDonationTagCache(nodeId);
+  nodeCache = buildTagUserCache(nodeId);
   return nodeCache.get(prefix) || null;
 }
 
@@ -82,9 +82,9 @@ function saveTrafficRecords(nodeId, records) {
 
   for (const r of records) {
     let userId = r.userId;
-    // 捐赠节点脱敏格式：通过 tag 反查 userId
+    // 通过 tag 反查 userId
     if (!userId && r.tag) {
-      userId = resolveDonationTagUserId(nodeId, r.tag);
+      userId = resolveTagUserId(nodeId, r.tag);
       if (!userId) continue; // 无法反查，跳过
     }
     if (!userId) continue;
@@ -145,10 +145,10 @@ function updateOnlineCache(nodeId, trafficRecords) {
 
   const nodeUserIds = new Set();
   for (const r of trafficRecords) {
-    // 捐赠节点可能只有 tag 没有 userId，复用共享缓存反查
+    // 兼容仅有 tag 的记录，复用共享缓存反查
     let uid = r.userId;
     if (!uid && r.tag) {
-      uid = resolveDonationTagUserId(nodeId, r.tag);
+      uid = resolveTagUserId(nodeId, r.tag);
     }
     if (uid) nodeUserIds.add(uid);
   }
@@ -180,31 +180,6 @@ function updateFromAgentReport(nodeId, reportData) {
   const now = new Date(Date.now() + 8 * 3600000).toISOString();
   const node = db.getNodeById(nodeId);
   if (!node) return;
-
-  // ─── 捐赠节点配置防篡改校验 ───
-  if (node.is_donation && configHash) {
-    const expectedHash = db.getSetting(`donate_cfg_hash_${nodeId}`);
-    if (expectedHash && configHash !== expectedHash) {
-      console.error(`[🚨 安全] 捐赠节点 ${node.name} (#${nodeId}) 配置被篡改！期望: ${expectedHash.slice(0, 12)}... 实际: ${configHash.slice(0, 12)}...`);
-      // 立即下线节点
-      db.updateNode(nodeId, {
-        is_active: 0,
-        remark: '🚨 配置被篡改，已自动下线',
-        last_check: now.replace('T', ' ').substring(0, 19),
-      });
-      db.addAuditLog(null, 'donate_config_tamper', `🚨 捐赠节点 ${node.name} 配置被篡改，已自动下线 | 期望哈希: ${expectedHash.slice(0, 16)} 实际: ${configHash.slice(0, 16)}`, 'system');
-      // TG 通知大哥
-      notify.ops(`🚨 <b>捐赠节点配置被篡改！</b>\n节点: ${node.name} (#${nodeId})\n动作: 已自动下线\n期望哈希: <code>${expectedHash.slice(0, 16)}</code>\n实际哈希: <code>${configHash.slice(0, 16)}</code>`);
-      // 断开 Agent 连接
-      try {
-        const agentWs = require('./agent-ws');
-        const agents = agentWs.getConnectedAgents();
-        const agent = agents.find(a => a.nodeId === nodeId);
-        // 不断开连接，但标记已下线，等人工处理
-      } catch {}
-      return; // 不再处理后续逻辑
-    }
-  }
 
   // 判定节点状态
   let status, remark;

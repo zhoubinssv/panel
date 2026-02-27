@@ -89,7 +89,7 @@ router.get('/users/:id/detail', (req, res) => {
   const info = {
     id: user.id, username: user.username, name: user.name,
     trust_level: user.trust_level, is_admin: user.is_admin,
-    is_blocked: user.is_blocked, is_frozen: user.is_frozen, is_donor: user.is_donor,
+    is_blocked: user.is_blocked, is_frozen: user.is_frozen,
     last_login: user.last_login, created_at: user.created_at,
     expires_at: user.expires_at, traffic_limit: user.traffic_limit,
     nodeloc_id: user.nodeloc_id, sub_token: user.sub_token,

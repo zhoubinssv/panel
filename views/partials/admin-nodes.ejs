@@ -7,13 +7,12 @@
       <button type="button" class="glass text-white px-4 py-2 rounded-xl text-sm hover:bg-white/10 transition" onclick="_confirm('确定轮换所有节点的UUID？').then(ok=>{if(ok)this.closest('form').submit()})">🔄 手动轮换UUID</button>
     </form>
     <button onclick="doUpdateAllAgents(this)" class="glass text-white px-4 py-2 rounded-xl text-sm hover:bg-white/10 transition">🔄 更新 Agent</button>
-    <button id="btn-toggle-donate" onclick="toggleDonateNodes()" class="glass text-amber-400 px-4 py-2 rounded-xl text-sm hover:bg-amber-500/10 border border-amber-500/20 transition">🎁 捐赠节点</button>
   </div>
 
   <!-- 移动端卡片布局 -->
   <div class="sm:hidden space-y-3">
     <% nodes.forEach(function(n) { %>
-    <div class="glass rounded-2xl p-4 space-y-3" data-node-id="<%= n.id %>" data-donation="<%= n.is_donation ? 1 : 0 %>">
+    <div class="glass rounded-2xl p-4 space-y-3" data-node-id="<%= n.id %>">
       <div class="flex items-center justify-between">
         <span class="font-medium text-white text-sm"><%= n.name %></span>
         <% if (n.protocol === 'ss') { %><span class="text-[10px] bg-cyan-800/60 text-cyan-300 px-1.5 py-0.5 rounded ml-1">SS</span><% } %>
@@ -97,7 +96,7 @@
         </thead>
         <tbody class="text-gray-300">
           <% nodes.forEach(function(n) { %>
-          <tr class="border-b border-white/5 hover:bg-white/[0.02]" data-node-id="<%= n.id %>" data-donation="<%= n.is_donation ? 1 : 0 %>">
+          <tr class="border-b border-white/5 hover:bg-white/[0.02]" data-node-id="<%= n.id %>">
             <td class="py-3 px-4 font-medium text-white text-xs"><%= n.name %></td>
             <td class="py-3 px-4">
               <code class="text-xs text-gray-400 break-all" id="host-display-<%= n.id %>"><%= n.host %></code>
@@ -230,23 +229,6 @@
 <script nonce="<%= nonce %>">
 // CSRF token
 const _csrf = '<%= csrfToken %>';
-
-// 捐赠节点筛选
-let _showDonateOnly = false;
-function toggleDonateNodes() {
-  _showDonateOnly = !_showDonateOnly;
-  const btn = document.getElementById('btn-toggle-donate');
-  btn.classList.toggle('bg-amber-500/20', _showDonateOnly);
-  btn.textContent = _showDonateOnly ? '🎁 返回全部节点' : '🎁 捐赠节点';
-  document.querySelectorAll('[data-donation]').forEach(el => {
-    const isDonation = el.dataset.donation === '1';
-    el.style.display = (_showDonateOnly ? !isDonation : isDonation) ? 'none' : '';
-  });
-}
-// 默认隐藏捐赠节点
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('[data-donation="1"]').forEach(el => el.style.display = 'none');
-});
 
 // 滑块开关切换
 function toggleDeploy(type) {

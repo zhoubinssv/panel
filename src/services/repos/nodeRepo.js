@@ -15,11 +15,10 @@ function decryptNode(node) {
   return node;
 }
 
-function getAllNodes(activeOnly = false, includeDonation = true) {
-  const donationFilter = includeDonation ? '' : ' AND COALESCE(is_donation, 0) = 0';
+function getAllNodes(activeOnly = false) {
   const rows = activeOnly
-    ? _getDb().prepare('SELECT * FROM nodes WHERE is_active = 1' + donationFilter + ' ORDER BY region, name').all()
-    : _getDb().prepare('SELECT * FROM nodes WHERE 1=1' + donationFilter + ' ORDER BY is_active DESC, region, name').all();
+    ? _getDb().prepare('SELECT * FROM nodes WHERE is_active = 1 ORDER BY region, name').all()
+    : _getDb().prepare('SELECT * FROM nodes WHERE 1=1 ORDER BY is_active DESC, region, name').all();
   return rows.map(decryptNode);
 }
 
@@ -52,7 +51,7 @@ function addNode(node) {
 }
 
 function updateNode(id, fields) {
-  const allowed = ['name','host','port','uuid','ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_path','region','remark','is_active','last_check','last_rotated','socks5_host','socks5_port','socks5_user','socks5_pass','min_level','reality_private_key','reality_public_key','reality_short_id','sni','aws_instance_id','aws_type','aws_region','aws_account_id','is_manual','fail_count','agent_last_report','agent_token','group_name','tags','ss_method','ss_password','ip_version','is_donation','rotate_port_locked'];
+  const allowed = ['name','host','port','uuid','ssh_host','ssh_port','ssh_user','ssh_password','ssh_key_path','region','remark','is_active','last_check','last_rotated','socks5_host','socks5_port','socks5_user','socks5_pass','min_level','reality_private_key','reality_public_key','reality_short_id','sni','aws_instance_id','aws_type','aws_region','aws_account_id','is_manual','fail_count','agent_last_report','agent_token','group_name','tags','ss_method','ss_password','ip_version','rotate_port_locked'];
   const safe = Object.fromEntries(Object.entries(fields).filter(([k]) => allowed.includes(k)));
 
   // 与 addNode 保持一致：敏感字段入库前统一加密
@@ -71,8 +70,6 @@ function updateNode(id, fields) {
 
 function deleteNode(id) {
   _getDb().prepare('DELETE FROM nodes WHERE id = ?').run(id);
-  // 同步更新捐赠记录
-  _getDb().prepare("UPDATE node_donations SET status = 'offline', node_id = NULL WHERE node_id = ?").run(id);
 }
 
 function updateNodeAfterRotation(id, newUuid, newPort) {

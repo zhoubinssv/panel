@@ -8,8 +8,7 @@
         <span class="text-white font-semibold hidden sm:block">小姨子的诱惑</span>
       </div>
       <div class="flex items-center gap-3">
-        <span class="<%= user.is_donor ? 'text-amber-300' : 'text-gray-300' %> text-sm hidden sm:block"><%= user.name || user.username %><% if (user.is_donor) { %> <span class="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">👑 捐赠者</span><% } %></span>
-        <a href="/donate" class="text-xs px-3 py-1.5 rounded-full bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition">🎁 捐赠节点</a>
+        <span class="text-gray-300 text-sm hidden sm:block"><%= user.name || user.username %></span>
         <% if (user.is_admin) { %><a href="/admin" class="text-xs px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition">管理</a><% } %>
         <a href="/auth/logout" class="text-xs px-3 py-1.5 rounded-full glass text-gray-300 hover:text-red-400 transition">退出</a>
       </div>
@@ -63,11 +62,11 @@
       <% const _resetLabels = { 0: '每7天', 1: '每7天', 2: '每15天', 3: '每月', 4: '永不' }; %>
       <div class="flex items-center justify-between mb-3 flex-wrap gap-1.5">
         <div class="flex items-center gap-2 text-[11px]">
-          <h2 class="<%= user.is_donor ? 'text-amber-300' : 'text-white' %> font-semibold text-sm">📡 个人订阅</h2>
-          <span class="text-gray-600">🍑 已运行 <span class="text-gray-400"><%= _runDays %></span> 天 · Lv.<%= user.trust_level || 0 %><%= user.is_donor ? ' · 👑 捐赠者' : '' %></span>
+          <h2 class="text-white font-semibold text-sm">📡 个人订阅</h2>
+          <span class="text-gray-600">🍑 已运行 <span class="text-gray-400"><%= _runDays %></span> 天 · Lv.<%= user.trust_level || 0 %></span>
         </div>
         <div class="text-[11px] text-gray-400">
-          UUID 重置：<span id="uuid-reset-countdown" class="text-rose-300">计算中...</span> <span class="text-gray-600">(每天)</span> · 订阅重置：<span id="sub-reset-countdown" class="text-cyan-300">计算中...</span> <span class="text-gray-600">(<%= _resetLabels[Math.min(user.trust_level || 0, 4)] %><%= (user.trust_level < 3 && user.is_donor) ? '·捐赠者享每月' : '' %>)</span>
+          UUID 重置：<span id="uuid-reset-countdown" class="text-rose-300">计算中...</span> <span class="text-gray-600">(每天)</span> · 订阅重置：<span id="sub-reset-countdown" class="text-cyan-300">计算中...</span> <span class="text-gray-600">(<%= _resetLabels[Math.min(user.trust_level || 0, 4)] %>)</span>
         </div>
       </div>
       <div class="space-y-2">
@@ -112,7 +111,7 @@
     <!-- 节点列表（按分组展示） -->
     <div>
       <div class="flex items-center justify-between mb-3 gap-2">
-        <h2 class="<%= user.is_donor ? 'text-amber-300' : 'text-white' %> font-semibold">🌐 可用节点</h2>
+        <h2 class="text-white font-semibold">🌐 可用节点</h2>
         <div class="flex items-center gap-2">
           <span class="text-gray-600 text-xs"><%= userNodes.length %> 个节点</span>
         </div>
@@ -129,7 +128,7 @@
           _groups[g].push(n);
         });
         const _groupNames = Object.keys(_groups).sort((a, b) => {
-          const order = ['捐赠节点', '小姨子'];
+          const order = ['小姨子'];
           const ai = order.indexOf(a) === -1 ? 99 : order.indexOf(a);
           const bi = order.indexOf(b) === -1 ? 99 : order.indexOf(b);
           return ai - bi || a.localeCompare(b);

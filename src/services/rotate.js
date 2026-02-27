@@ -45,12 +45,12 @@ async function rotateCore() {
  * 获取用户订阅重置间隔天数
  * 0-1级: 7天
  * 2级: 15天
- * 3级/捐赠者: 月底重置（返回 'monthly'）
+ * 3级: 月底重置（返回 'monthly'）
  * 4级: 不重置（返回 Infinity）
  */
 function getResetInterval(user) {
   if (user.trust_level >= 4) return Infinity;
-  if (user.trust_level >= 3 || user.is_donor) return 'monthly';
+  if (user.trust_level >= 3) return 'monthly';
   if (user.trust_level >= 2) return 15;
   return 7;
 }
@@ -86,7 +86,7 @@ async function rotateAll() {
   const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
   const users = db.getUsersForTokenRotation();
   let tokenCount = 0;
-  const resetDetails = { lv01: 0, lv2: 0, lv3donor: 0, lv4skip: 0 };
+  const resetDetails = { lv01: 0, lv2: 0, lv3: 0, lv4skip: 0 };
 
   for (const user of users) {
     if (shouldResetToken(user, today)) {
@@ -96,17 +96,17 @@ async function rotateAll() {
       const interval = getResetInterval(user);
       if (interval === 7) resetDetails.lv01++;
       else if (interval === 15) resetDetails.lv2++;
-      else if (interval === 'monthly') resetDetails.lv3donor++;
+      else if (interval === 'monthly') resetDetails.lv3++;
     } else if (getResetInterval(user) === Infinity) {
       resetDetails.lv4skip++;
     }
   }
 
-  console.log(`[轮换] 订阅token重置 ${tokenCount} 个 (Lv0-1:${resetDetails.lv01} Lv2:${resetDetails.lv2} Lv3/捐赠:${resetDetails.lv3donor} Lv4免重置:${resetDetails.lv4skip})`);
+  console.log(`[轮换] 订阅token重置 ${tokenCount} 个 (Lv0-1:${resetDetails.lv01} Lv2:${resetDetails.lv2} Lv3:${resetDetails.lv3} Lv4免重置:${resetDetails.lv4skip})`);
 
   const result = { ...core, tokenCount };
   console.log(`[轮换完成] 同步 ✅${core.success} ❌${core.failed} | UUID:${core.uuidCount} | 订阅:${tokenCount}`);
-  db.addAuditLog(null, 'auto_rotate', `自动轮换完成 同步✅${core.success} ❌${core.failed} UUID:${core.uuidCount} 订阅:${tokenCount} (Lv0-1:${resetDetails.lv01} Lv2:${resetDetails.lv2} Lv3/捐赠:${resetDetails.lv3donor} Lv4免:${resetDetails.lv4skip})`, 'system');
+  db.addAuditLog(null, 'auto_rotate', `自动轮换完成 同步✅${core.success} ❌${core.failed} UUID:${core.uuidCount} 订阅:${tokenCount} (Lv0-1:${resetDetails.lv01} Lv2:${resetDetails.lv2} Lv3:${resetDetails.lv3} Lv4免:${resetDetails.lv4skip})`, 'system');
   notify.rotate(result);
   return result;
 }

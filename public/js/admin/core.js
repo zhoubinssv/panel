@@ -28,7 +28,6 @@ function switchTab(name) {
   if (name === 'users') loadUsers(1);
   if (name === 'traffic') { loadTraffic(1); loadTrafficChart(); }
   if (name === 'backup') loadBackups();
-  if (name === 'donations') loadDonations();
 }
 
 // Tab 滚动渐隐提示

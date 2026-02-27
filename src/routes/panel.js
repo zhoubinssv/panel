@@ -77,7 +77,6 @@ function nextUuidResetAtMs(now = new Date()) {
 function nextTokenResetAtMs(user, now = new Date()) {
   // 根据用户等级计算下次订阅重置时间
   const level = user.trust_level || 0;
-  const isDonor = user.is_donor || false;
 
   // Lv4 不重置
   if (level >= 4) return -1;
@@ -446,94 +445,5 @@ router.get('/api/traffic-detail', requireAuth, (req, res) => {
 
 // Sprint 6: 节点延迟测试 API（TCP ping）
 
-// ─── 捐赠节点模块 ───
-const { v4: uuidv4 } = require('uuid');
-const path = require('path');
-const fs = require('fs');
-
-// 捐赠安装脚本下载 agent.js
-router.get('/donate/agent.js', (req, res) => {
-  const agentPath = path.join(__dirname, '..', '..', 'node-agent', 'agent.js');
-  if (fs.existsSync(agentPath)) {
-    res.type('application/javascript').sendFile(agentPath);
-  } else {
-    res.status(404).send('agent not found');
-  }
-});
-
-router.get('/donate', requireAuth, (req, res) => {
-  const user = req.user;
-  const d = db.getDb();
-
-  // 获取用户的捐赠记录
-  const donations = d.prepare(`
-    SELECT nd.*, n.is_active as node_is_active 
-    FROM node_donations nd 
-    LEFT JOIN nodes n ON nd.node_id = n.id 
-    WHERE nd.user_id = ? AND nd.status IN ('pending', 'online') 
-    ORDER BY nd.created_at DESC
-  `).all(user.id);
-
-  // 生成或获取用户的捐赠 token
-  // 优先复用“未被使用”的 token，避免 N+1 查询
-  const unusedToken = d.prepare(`
-    SELECT dt.token
-    FROM donate_tokens dt
-    LEFT JOIN node_donations nd ON nd.token = dt.token
-    WHERE dt.user_id = ? AND nd.id IS NULL
-    ORDER BY dt.created_at DESC
-    LIMIT 1
-  `).get(user.id);
-
-  const donateToken = unusedToken?.token || ('donate-' + uuidv4());
-  if (!unusedToken) {
-    d.prepare("INSERT INTO donate_tokens (user_id, token, created_at) VALUES (?, ?, datetime('now', 'localtime'))").run(user.id, donateToken);
-  }
-
-  // 读取当前token的协议/NAT选项
-  const tokenRow = d.prepare('SELECT protocol_choice, nat_mode, nat_port FROM donate_tokens WHERE token = ?').get(donateToken);
-  const protocolChoice = tokenRow?.protocol_choice || 'vless';
-  const natMode = Number(tokenRow?.nat_mode || 0) === 1;
-  const natPort = Number(tokenRow?.nat_port || 0) || '';
-
-  const wsUrl = process.env.AGENT_WS_URL || 'wss://vip.vip.sd/ws/agent';
-  const installCmd = `bash <(curl -sL https://vip.vip.sd/donate/install.sh) ${wsUrl} ${donateToken} ${protocolChoice}`;
-
-  // 捐赠者排行榜（只统计在线节点）
-  const donors = d.prepare(`
-    SELECT u.username, u.name, COUNT(nd.id) as count
-    FROM node_donations nd 
-    JOIN users u ON nd.user_id = u.id
-    JOIN nodes n ON nd.node_id = n.id
-    WHERE nd.status = 'online' AND n.is_active = 1
-    GROUP BY nd.user_id ORDER BY count DESC LIMIT 10
-  `).all();
-
-  res.render('donate', { user, donations, donateToken, installCmd, donors, protocolChoice, natMode, natPort });
-});
-
-// 保存协议/NAT 选项
-router.post('/donate/set-protocol', requireAuth, (req, res) => {
-  const { protocol, token, natMode, natPort } = req.body;
-  if (!['vless', 'ss', 'dual'].includes(protocol)) return res.json({ ok: false, error: '无效协议' });
-  const nat = natMode ? 1 : 0;
-  const port = Number(natPort);
-  const safeNatPort = (nat && Number.isInteger(port) && port >= 1 && port <= 65535) ? port : null;
-  const d = db.getDb();
-  d.prepare('UPDATE donate_tokens SET protocol_choice = ?, nat_mode = ?, nat_port = ? WHERE token = ? AND user_id = ?').run(protocol, nat, safeNatPort, token, req.user.id);
-  // 同步更新到 node_donations（如果已有连接记录）
-  d.prepare('UPDATE node_donations SET protocol_choice = ?, nat_mode = ?, nat_port = ? WHERE token = ? AND user_id = ?').run(protocol, nat, safeNatPort, token, req.user.id);
-  res.json({ ok: true });
-});
-
-router.post('/donate/generate', requireAuth, (req, res) => {
-  const user = req.user;
-  const d = db.getDb();
-  const token = 'donate-' + uuidv4();
-  // 只记录令牌绑定用户，不插 node_donations，等 Agent 真正连上来再创建记录
-  d.prepare("INSERT OR REPLACE INTO donate_tokens (user_id, token, created_at) VALUES (?, ?, datetime('now', 'localtime'))").run(user.id, token);
-  db.addAuditLog(user.id, 'donate_generate', `用户 ${user.username} 生成捐赠令牌`, '');
-  res.json({ ok: true, token });
-});
 
 module.exports = router;

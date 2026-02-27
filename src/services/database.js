@@ -119,7 +119,6 @@ function initTables() {
       remark TEXT,
       last_rotated TEXT,
       last_check TEXT,
-      is_donation INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -305,9 +304,6 @@ function initTables() {
   if (!userCols.includes('traffic_limit')) {
     db.exec("ALTER TABLE users ADD COLUMN traffic_limit INTEGER DEFAULT 0");
   }
-  if (!userCols.includes('is_donor')) {
-    db.exec("ALTER TABLE users ADD COLUMN is_donor INTEGER DEFAULT 0");
-  }
   if (!userCols.includes('last_token_reset')) {
     db.exec("ALTER TABLE users ADD COLUMN last_token_reset TEXT DEFAULT '2000-01-01'");
   }
@@ -341,58 +337,6 @@ function initTables() {
     )
   `);
 
-  // 捐赠节点表
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS node_donations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      token TEXT UNIQUE NOT NULL,
-      status TEXT DEFAULT 'pending',
-      node_id INTEGER,
-      server_ip TEXT,
-      region TEXT,
-      remark TEXT,
-      nat_mode INTEGER DEFAULT 0,
-      nat_port INTEGER,
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      approved_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE SET NULL
-    )
-  `);
-
-  // 捐赠令牌表（生成时记录，Agent连上来才转入 node_donations）
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS donate_tokens (
-      user_id INTEGER NOT NULL,
-      token TEXT UNIQUE NOT NULL,
-      protocol_choice TEXT DEFAULT 'vless',
-      nat_mode INTEGER DEFAULT 0,
-      nat_port INTEGER,
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      PRIMARY KEY (token)
-    )
-  `);
-
-  // 迁移：donate_tokens 增加协议字段
-  const donateTokenCols = db.prepare("PRAGMA table_info(donate_tokens)").all().map(c => c.name);
-  if (!donateTokenCols.includes('protocol_choice')) {
-    try { db.exec("ALTER TABLE donate_tokens ADD COLUMN protocol_choice TEXT DEFAULT 'vless'"); } catch(_) {}
-  }
-  if (!donateTokenCols.includes('nat_mode')) {
-    try { db.exec("ALTER TABLE donate_tokens ADD COLUMN nat_mode INTEGER DEFAULT 0"); } catch(_) {}
-  }
-  if (!donateTokenCols.includes('nat_port')) {
-    try { db.exec("ALTER TABLE donate_tokens ADD COLUMN nat_port INTEGER"); } catch(_) {}
-  }
-
-  const donationCols = db.prepare("PRAGMA table_info(node_donations)").all().map(c => c.name);
-  if (!donationCols.includes('nat_mode')) {
-    try { db.exec("ALTER TABLE node_donations ADD COLUMN nat_mode INTEGER DEFAULT 0"); } catch(_) {}
-  }
-  if (!donationCols.includes('nat_port')) {
-    try { db.exec("ALTER TABLE node_donations ADD COLUMN nat_port INTEGER"); } catch(_) {}
-  }
 
   // Sprint 7: 清理废弃 AI 表
   db.exec("DROP TABLE IF EXISTS ai_providers");
@@ -470,12 +414,18 @@ function initTables() {
   if (!nodeCols2.includes('ip_version')) {
     try { db.exec("ALTER TABLE nodes ADD COLUMN ip_version INTEGER DEFAULT 4"); } catch(_){}
   }
-  if (!nodeCols2.includes('is_donation')) {
-    try { db.exec("ALTER TABLE nodes ADD COLUMN is_donation INTEGER DEFAULT 0"); } catch(_){}
-  }
   if (!nodeCols2.includes('rotate_port_locked')) {
     try { db.exec("ALTER TABLE nodes ADD COLUMN rotate_port_locked INTEGER DEFAULT 0"); } catch(_){}
   }
+
+
+  // 清理已废弃的捐赠模块数据结构
+  try { db.exec('DROP TABLE IF EXISTS node_donations'); } catch(_) {}
+  try { db.exec('DROP TABLE IF EXISTS donate_tokens'); } catch(_) {}
+  try { db.exec("DELETE FROM settings WHERE key LIKE 'donate_cfg_hash_%'"); } catch(_) {}
+  try { db.exec('UPDATE users SET is_donor = 0 WHERE is_donor = 1'); } catch(_) {}
+  try { db.exec('ALTER TABLE users DROP COLUMN is_donor'); } catch(_) {}
+  try { db.exec('ALTER TABLE nodes DROP COLUMN is_donation'); } catch(_) {}
 
   // Sprint 6 迁移：用户到期时间
   const userCols2 = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);

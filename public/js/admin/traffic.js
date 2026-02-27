@@ -154,7 +154,6 @@ async function showUserDetail(userId) {
     const levelColors = ['text-gray-400','text-blue-400','text-green-400','text-purple-400','text-amber-400'];
     const badges = [];
     if (u.is_admin) badges.push('<span class="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px]">管理员</span>');
-    if (u.is_donor) badges.push('<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px]">🎁 捐赠者</span>');
     if (u.is_blocked) badges.push('<span class="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px]">🚫 封禁</span>');
     if (u.is_frozen) badges.push('<span class="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 text-[10px]">❄️ 冻结</span>');
 

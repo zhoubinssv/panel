@@ -73,7 +73,7 @@ function getAllUsers() {
 
 function getUsersForTokenRotation() {
   return _getDb().prepare(`
-    SELECT id, trust_level, is_donor, last_token_reset
+    SELECT id, trust_level, last_token_reset
     FROM users
   `).all();
 }
