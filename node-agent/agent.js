@@ -207,6 +207,44 @@ async function getDiskUsage() {
   return { total: +total, used: +used, avail: +avail, usagePercent: parseFloat(percent) };
 }
 
+
+async function detectXrayServiceName() {
+  const candidates = ['xray', 'xray.service', 'v2ray', 'v2ray.service', 'xrayR', 'xrayr', 'xrayr.service'];
+  for (const name of candidates) {
+    const { ok } = await run(`systemctl status ${name} >/dev/null 2>&1`, 8000);
+    if (ok) return name;
+  }
+  const list = await run("systemctl list-unit-files --type=service --no-pager | grep -Ei 'xray|v2ray|xrayr'", 10000);
+  if (list.ok && list.stdout) {
+    const first = list.stdout.split(/\n/).map(x => x.trim()).find(Boolean);
+    if (first) return first.split(/\s+/)[0];
+  }
+  return 'xray';
+}
+
+async function restartXraySmart() {
+  const service = await detectXrayServiceName();
+  const steps = [];
+
+  let r = await run(`systemctl restart ${service}`, 15000);
+  steps.push(`restart ${service}: ${r.ok ? 'ok' : r.stderr || r.code || 'fail'}`);
+  if (r.ok) return { ok: true, service, steps, stderr: '' };
+
+  // 兜底：若 unit 文件存在但未加载，尝试 daemon-reload 后再起
+  const unitPath = '/etc/systemd/system/xray.service';
+  if (fs.existsSync(unitPath)) {
+    await run('systemctl daemon-reload', 10000);
+    r = await run('systemctl restart xray', 15000);
+    steps.push(`daemon-reload + restart xray: ${r.ok ? 'ok' : r.stderr || r.code || 'fail'}`);
+    if (r.ok) return { ok: true, service: 'xray', steps, stderr: '' };
+  }
+
+  // 最后回传诊断信息
+  const diag = await run("systemctl list-unit-files --type=service --no-pager | grep -Ei 'xray|v2ray|xrayr' || true", 12000);
+  const err = (r.stderr || '').trim();
+  return { ok: false, service, steps, stderr: err, diag: (diag.stdout || '').trim() };
+}
+
 async function getXrayStatus() {
   const { stdout } = await run('systemctl is-active xray');
   return stdout === 'active';
@@ -291,8 +329,8 @@ async function selfHeal() {
   const active = await getXrayStatus();
   if (!active) {
     log('自愈', 'xray 未运行，尝试重启...');
-    const { ok, stderr } = await run('systemctl restart xray');
-    log('自愈', ok ? 'xray 重启成功' : `xray 重启失败: ${stderr}`);
+    const rr = await restartXraySmart();
+    log('自愈', rr.ok ? `xray 重启成功 (${rr.service})` : `xray 重启失败: ${rr.stderr || 'unknown'} ${rr.diag ? '| units: '+rr.diag : ''}`);
   }
 }
 
@@ -307,8 +345,8 @@ async function handleCommand(msg) {
       break;
 
     case 'restart_xray': {
-      const { ok, stderr } = await run('systemctl restart xray');
-      reply({ success: ok, error: ok ? undefined : stderr });
+      const rr = await restartXraySmart();
+      reply({ success: rr.ok, error: rr.ok ? undefined : `${rr.stderr || 'restart failed'}${rr.diag ? ' | units: ' + rr.diag : ''}`, service: rr.service, steps: rr.steps });
       break;
     }
 
@@ -317,8 +355,8 @@ async function handleCommand(msg) {
         if (!msg.config) throw new Error('缺少 config 字段');
         const configStr = typeof msg.config === 'string' ? msg.config : JSON.stringify(msg.config, null, 2);
         fs.writeFileSync(XRAY_CONFIG_PATH, configStr, 'utf8');
-        const { ok, stderr } = await run('systemctl restart xray');
-        reply({ success: ok, error: ok ? undefined : stderr });
+        const rr = await restartXraySmart();
+        reply({ success: rr.ok, error: rr.ok ? undefined : `${rr.stderr || 'restart failed'}${rr.diag ? ' | units: ' + rr.diag : ''}`, service: rr.service, steps: rr.steps });
       } catch (e) {
         reply({ success: false, error: e.message });
       }
