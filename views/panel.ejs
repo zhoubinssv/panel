@@ -118,7 +118,7 @@
         </div>
       </div>
       <div class="mb-3">
-        <input id="node-search" type="text" placeholder="搜索节点名 / 地区 / 标签..." oninput="filterNodes(this.value)" class="w-full bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm" />
+        <input id="node-search" type="text" placeholder="搜索节点名 / 地区 / 协议 (vless/ss)..." oninput="filterNodes(this.value)" class="w-full bg-black/30 text-white px-3 py-2 rounded-xl border border-white/10 text-sm" />
       </div>
       <%
         // 按 group_name 分组
@@ -148,7 +148,7 @@
             <p class="text-gray-500">暂无可用节点</p>
           </div>
         <% } else { _groups[gName].forEach(function(n) { %>
-          <div class="glass rounded-2xl p-4 node-card" data-search="<%= (n.name || '') + ' ' + (n.region || '') + ' ' + (n.tags || '') %>">
+          <div class="glass rounded-2xl p-4 node-card" data-search="<%= (n.name || '') + ' ' + (n.region || '') + ' ' + (n.protocol || '') + ' ' + (n.tags || '') %>">
             <div class="flex items-center justify-between mb-2.5">
               <div class="flex items-center gap-2 min-w-0">
                 <% if (n.remark && n.remark.includes('被墙')) { %>
