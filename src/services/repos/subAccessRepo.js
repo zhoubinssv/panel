@@ -6,8 +6,8 @@ function init(deps) {
 }
 
 function logSubAccess(userId, ip, ua) {
+  // 仅记录访问；历史清理由 app.js 的定时任务统一处理，避免高频订阅路径触发 DELETE
   _getDb().prepare("INSERT INTO sub_access_log (user_id, ip, ua, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))").run(userId, ip, ua || '');
-  _getDb().prepare("DELETE FROM sub_access_log WHERE created_at < datetime('now', '-30 days')").run();
 }
 
 function getSubAccessIPs(userId, hours = 24) {
