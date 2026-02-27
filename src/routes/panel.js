@@ -262,7 +262,8 @@ async function sendSubQr(req, res, type = 'v4') {
   }
 }
 
-router.get('/sub-qr/:type?', requireAuth, async (req, res) => {
+router.get('/sub-qr', requireAuth, async (req, res) => sendSubQr(req, res, 'v4'));
+router.get('/sub-qr/:type', requireAuth, async (req, res) => {
   const type = (req.params.type || '').toLowerCase();
   return sendSubQr(req, res, type === '6' || type === 'v6' ? 'v6' : 'v4');
 });
