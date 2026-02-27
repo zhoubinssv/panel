@@ -113,6 +113,32 @@ configEvents.on('sync-node', (node) => {
   deployService.syncNodeConfig(node, dbModule).catch(err => console.error('[配置同步]', err));
 });
 
+// Agent 自更新下载（供远端 Agent 拉取最新 agent.js）
+app.get('/api/agent/download', (req, res) => {
+  try {
+    const auth = req.headers.authorization || '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+    if (!token) return res.status(401).send('Unauthorized');
+
+    const d = getDb();
+    const globalToken = d.prepare("SELECT value FROM settings WHERE key='agent_token'").get()?.value;
+    const nodeToken = d.prepare('SELECT id FROM nodes WHERE agent_token = ? LIMIT 1').get(token);
+    const donateToken = d.prepare('SELECT id FROM donate_tokens WHERE token = ? LIMIT 1').get(token);
+
+    if (token !== globalToken && !nodeToken && !donateToken) {
+      return res.status(403).send('Forbidden');
+    }
+
+    const agentPath = path.join(__dirname, '..', 'node-agent', 'agent.js');
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.sendFile(agentPath);
+  } catch (err) {
+    logger.error({ err }, 'Agent 下载失败');
+    return res.status(500).send('Internal Server Error');
+  }
+});
+
 // 路由
 app.use('/auth/nodeloc', authLimiter);
 app.use('/auth/callback', authLimiter);
