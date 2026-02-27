@@ -144,7 +144,8 @@ app.use('/auth/nodeloc', authLimiter);
 app.use('/auth/callback', authLimiter);
 app.use('/auth', authRoutes);
 app.use('/admin/api', adminLimiter, csrfProtection, adminApiRoutes);
-app.use('/admin', adminRoutes);
+// 管理后台页面下的 POST 表单也启用 CSRF（GET 不受影响）
+app.use('/admin', csrfProtection, adminRoutes);
 app.use('/', panelRoutes);
 
 // O2: 健康检查端点

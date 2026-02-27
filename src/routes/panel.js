@@ -307,14 +307,7 @@ router.get('/sub/:token', subLimiter, (req, res) => {
     }
   }
 
-  const isVip = db.isInWhitelist(user.nodeloc_id);
-  const nodes = db.getAllNodes(true).filter(n => (isVip || user.trust_level >= (n.min_level || 0)) && n.protocol !== 'ss');
-
-  // 获取用户在每个节点的 UUID
-  const userNodes = nodes.map(n => {
-    const userUuid = db.getUserNodeUuid(user.id, n.id);
-    return { ...n, uuid: userUuid.uuid };
-  });
+  const userNodes = db.getUserNodesWithUuids(user.id, true).filter(n => n.protocol !== 'ss');
 
   // 获取用户流量用于 Subscription-Userinfo
   const traffic = db.getUserTraffic(user.id);
@@ -399,18 +392,10 @@ router.get('/sub6/:token', subLimiter, (req, res) => {
 
   db.logSubAccess(user.id, clientIP, ua);
 
-  const isVip = db.isInWhitelist(user.nodeloc_id);
-  // 只取 IPv6 + SS 节点
-  const rawNodes = db.getAllNodes(true).filter(n =>
-    n.ip_version === 6 && n.protocol === 'ss' &&
-    (isVip || user.trust_level >= (n.min_level || 0))
-  );
-
-  // 为每个 SS 节点注入用户独立密码（复用 user_node_uuid 的 uuid 作为 SS 密码）
-  const nodes = rawNodes.map(n => {
-    const userUuid = db.getUserNodeUuid(user.id, n.id);
-    return { ...n, userPassword: userUuid.uuid };
-  });
+  // 只取 IPv6 + SS 节点（已在查询层完成权限过滤）
+  const nodes = db.getUserNodesWithUuids(user.id, true)
+    .filter(n => n.ip_version === 6 && n.protocol === 'ss')
+    .map(n => ({ ...n, userPassword: n.uuid }));
 
   const traffic = db.getUserTraffic(user.id);
   const trafficLimit = user.traffic_limit || 0;

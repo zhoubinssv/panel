@@ -20,11 +20,20 @@ async function rotateCore() {
   console.log(`[轮换] 已重置 ${uuidCount} 个用户-节点 UUID（自动节点）`);
 
   let success = 0, failed = 0;
-  for (const node of nodes) {
-    const updatedNode = db.getNodeById(node.id);
-    const ok = await syncNodeConfig(updatedNode, db).catch(() => false);
-    if (ok) success++; else failed++;
+  const CONCURRENCY = 5;
+  const queue = [...nodes];
+
+  async function worker() {
+    while (queue.length) {
+      const node = queue.shift();
+      if (!node) break;
+      const updatedNode = db.getNodeById(node.id);
+      const ok = await syncNodeConfig(updatedNode, db).catch(() => false);
+      if (ok) success++; else failed++;
+    }
   }
+
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, nodes.length || 1) }, () => worker()));
   return { success, failed, uuidCount };
 }
 

@@ -495,6 +495,7 @@ module.exports = {
   getUserNodeUuid: (...a) => uuidRepo.getUserNodeUuid(...a),
   getUserAllNodeUuids: (...a) => uuidRepo.getUserAllNodeUuids(...a),
   getNodeAllUserUuids: (...a) => uuidRepo.getNodeAllUserUuids(...a),
+  getUserNodesWithUuids: (...a) => uuidRepo.getUserNodesWithUuids(...a),
   ensureAllUsersHaveUuid: (...a) => uuidRepo.ensureAllUsersHaveUuid(...a),
   ensureUserHasAllNodeUuids: (...a) => uuidRepo.ensureUserHasAllNodeUuids(...a),
   rotateAllUserNodeUuids: (...a) => uuidRepo.rotateAllUserNodeUuids(...a),

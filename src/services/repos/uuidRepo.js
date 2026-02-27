@@ -83,9 +83,26 @@ function rotateUserNodeUuidsByNodeIds(nodeIds = []) {
   return rows.length;
 }
 
+function getUserNodesWithUuids(userId, activeOnly = true) {
+  const activeSql = activeOnly ? 'AND n.is_active = 1' : '';
+  return _getDb().prepare(`
+    SELECT n.*, un.uuid
+    FROM user_node_uuid un
+    JOIN nodes n ON n.id = un.node_id
+    JOIN users u ON u.id = un.user_id
+    LEFT JOIN whitelist w ON u.nodeloc_id = w.nodeloc_id
+    WHERE un.user_id = ?
+      AND u.is_blocked = 0
+      AND u.is_frozen = 0
+      AND (w.nodeloc_id IS NOT NULL OR u.trust_level >= COALESCE(n.min_level, 0))
+      ${activeSql}
+    ORDER BY n.region, n.name
+  `).all(userId);
+}
+
 module.exports = {
   init,
-  getUserNodeUuid, getUserAllNodeUuids, getNodeAllUserUuids,
+  getUserNodeUuid, getUserAllNodeUuids, getNodeAllUserUuids, getUserNodesWithUuids,
   ensureAllUsersHaveUuid, ensureUserHasAllNodeUuids,
   rotateAllUserNodeUuids, rotateUserNodeUuidsByNodeIds
 };
