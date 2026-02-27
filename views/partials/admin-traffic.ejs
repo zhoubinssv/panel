@@ -44,17 +44,7 @@
           <tr><th class="py-2 px-4 w-8">#</th><th class="py-2 px-4">用户</th><th class="py-2 px-4">↑ 上传</th><th class="py-2 px-4">↓ 下载</th><th class="py-2 px-4">总计</th></tr>
         </thead>
         <tbody class="text-gray-300" id="traffic-body">
-          <% if (usersTraffic.rows.length === 0) { %>
-            <tr><td colspan="5" class="py-6 px-4 text-gray-600 text-xs text-center">今日暂无流量数据</td></tr>
-          <% } else { usersTraffic.rows.forEach(function(u, i) { %>
-            <tr class="border-b border-white/5 hover:bg-white/[0.02]">
-              <td class="py-2 px-4 text-[11px] text-gray-500"><%= i + 1 %></td>
-              <td class="py-2 px-4 text-xs text-white"><%= u.username %></td>
-              <td class="py-2 px-4 text-xs"><%= formatBytes(u.total_up) %></td>
-              <td class="py-2 px-4 text-xs"><%= formatBytes(u.total_down) %></td>
-              <td class="py-2 px-4 text-xs font-medium text-rose-400"><%= formatBytes(u.total_up + u.total_down) %></td>
-            </tr>
-          <% }); } %>
+            <tr><td colspan="5" class="py-6 px-4 text-gray-600 text-xs text-center">点击「📊 流量」标签加载数据</td></tr>
         </tbody>
       </table>
     </div>
