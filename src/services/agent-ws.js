@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const db = require('./database');
 const healthService = require('./health');
 const { notify } = require('./notify');
+const logger = require('./logger');
 
 let _deploy;
 let _uuidRepo;
@@ -19,7 +20,7 @@ const agents = new Map();
 // 节点连接指标：nodeId → { disconnectCount, lastDisconnectAt, lastReconnectAt, consecutiveReconnects }
 const agentMetrics = new Map();
 
-// 待响应的指令回调：cmdId → { resolve, reject, timer, nodeId }
+// 待响应的指令回调：cmdId → { resolve, timer, nodeId }
 const pendingCommands = new Map();
 
 const AUTH_TIMEOUT = 10000; // 认证超时 10s
@@ -72,12 +73,12 @@ function autoFixVlessIpv4(nodeId, node) {
       const ipv4 = result.success && result.data?.stdout?.trim();
       if (ipv4 && /^\d+\.\d+\.\d+\.\d+$/.test(ipv4)) {
         db.updateNode(nodeId, { host: ipv4 });
-        console.log(`[🍑 蜜桃酱] VLESS 捐赠节点 #${nodeId} IPv4 修正: ${node.host} → ${ipv4}`);
+        logger.info(`[🍑 蜜桃酱] VLESS 捐赠节点 #${nodeId} IPv4 修正: ${node.host} → ${ipv4}`);
         const freshNode = db.getNodeById(nodeId);
         getDeploy().syncNodeConfig(freshNode, db).catch(() => {});
       }
     } catch (e) {
-      console.log(`[🍑 蜜桃酱] IPv4 修正失败: ${e.message}`);
+      logger.info(`[🍑 蜜桃酱] IPv4 修正失败: ${e.message}`);
     }
   }, 3000);
 }
@@ -106,7 +107,7 @@ function bindDonationToNode(ws, donation, ip, version, capabilities) {
   });
 
   ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已上线' }));
-  console.log(`[Agent-WS] 捐赠节点重连 node#${donateNodeId} from ${ip}`);
+  logger.info(`[Agent-WS] 捐赠节点重连 node#${donateNodeId} from ${ip}`);
 
   autoFixVlessIpv4(donateNodeId, donateNode);
 }
@@ -120,20 +121,20 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
         const ipv6 = result.success && result.data?.stdout?.trim();
         if (ipv6) {
           d.prepare('UPDATE node_donations SET remark = ? WHERE id = ?').run(`IPv6: ${ipv6}`, donation.id);
-          console.log(`[Agent-WS] 捐赠节点 IPv6 检测成功: ${ipv6}`);
+          logger.info(`[Agent-WS] 捐赠节点 IPv6 检测成功: ${ipv6}`);
         } else {
           const failMsg = protoChoice === 'ss' ? '❌ 未检测到 IPv6，无法部署 SS 节点' : '⚠️ 未检测到 IPv6，仅支持 VLESS';
           d.prepare('UPDATE node_donations SET remark = ? WHERE id = ?').run(failMsg, donation.id);
-          console.log(`[Agent-WS] 捐赠节点 ${ip} 无 IPv6 (选择: ${protoChoice})`);
+          logger.info(`[Agent-WS] 捐赠节点 ${ip} 无 IPv6 (选择: ${protoChoice})`);
         }
       } catch (e) {
-        console.error(`[Agent-WS] IPv6 检测异常:`, e.message);
+        logger.error(`[Agent-WS] IPv6 检测异常:`, e.message);
       }
     }
 
     const freshDonation = d.prepare('SELECT * FROM node_donations WHERE id = ?').get(donation.id);
     if (freshDonation && freshDonation.status === 'pending') {
-      console.log(`[🍑 蜜桃酱] 自动审核捐赠节点 #${donation.id} from ${ip}`);
+      logger.info(`[🍑 蜜桃酱] 自动审核捐赠节点 #${donation.id} from ${ip}`);
 
       let region = freshDonation.region || '';
       if (!region && ip) {
@@ -154,10 +155,10 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
           const detectedIpv4 = ipv4Result.success && ipv4Result.data?.stdout?.trim();
           if (detectedIpv4 && /^\d+\.\d+\.\d+\.\d+$/.test(detectedIpv4)) {
             vlessHost = detectedIpv4;
-            console.log(`[🍑 蜜桃酱] VLESS IPv4 检测: ${detectedIpv4}`);
+            logger.info(`[🍑 蜜桃酱] VLESS IPv4 检测: ${detectedIpv4}`);
           }
         } catch {
-          console.log(`[🍑 蜜桃酱] IPv4 检测失败，使用连接 IP: ${ip}`);
+          logger.info(`[🍑 蜜桃酱] IPv4 检测失败，使用连接 IP: ${ip}`);
         }
 
         const nodeName = region ? `${region}-${donorName}` : donorName;
@@ -221,9 +222,9 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
           try {
             const n = db.getNodeById(nid);
             const ok = await getDeploy().syncNodeConfig(n, db);
-            console.log(`[🍑 蜜桃酱] 配置推送 ${ok ? '✅' : '❌'}: ${n.name}`);
+            logger.info(`[🍑 蜜桃酱] 配置推送 ${ok ? '✅' : '❌'}: ${n.name}`);
           } catch (e) {
-            console.error(`[🍑 蜜桃酱] 配置推送异常: ${e.message}`);
+            logger.error(`[🍑 蜜桃酱] 配置推送异常: ${e.message}`);
           }
         }
 
@@ -231,11 +232,11 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
           notify.deploy && notify.deploy(node?.name || ip, true, `🍑 蜜桃酱自动审核 | 协议: ${protoChoice} | 捐赠者: ${donorName}`);
         } catch {}
 
-        console.log(`[🍑 蜜桃酱] 自动审核完成: ${nodeIds.length} 个节点上线`);
+        logger.info(`[🍑 蜜桃酱] 自动审核完成: ${nodeIds.length} 个节点上线`);
       }
     }
   } catch (e) {
-    console.error(`[🍑 蜜桃酱] 自动审核异常:`, e.message, e.stack);
+    logger.error(`[🍑 蜜桃酱] 自动审核异常:`, e.message, e.stack);
   }
 }
 
@@ -269,7 +270,7 @@ function handleDonationAuth(ws, msg) {
   } else {
     ws._agentState.nodeId = `donate-${donation.id}`;
     ws.send(JSON.stringify({ type: 'auth_ok', message: '捐赠节点已连接，蜜桃酱正在自动审核...' }));
-    console.log(`[Agent-WS] 捐赠节点连接 from ${ip}, 用户#${donation.user_id}, 令牌: ${token}`);
+    logger.info(`[Agent-WS] 捐赠节点连接 from ${ip}, 用户#${donation.user_id}, 令牌: ${token}`);
     db.addAuditLog(donation.user_id, 'donate_connect', `捐赠节点连接: IP ${ip}`, ip);
 
     // BUG1: tokenRecord 在此作用域不存在，已有 donation 时直接使用 donation.protocol_choice
@@ -287,7 +288,7 @@ function handleDonationAuth(ws, msg) {
       if (geo && geo.city !== 'Unknown') {
         const region = `${geo.emoji} ${geo.cityCN}`;
         d.prepare('UPDATE node_donations SET region = ? WHERE id = ?').run(region, donation.id);
-        console.log(`[Agent-WS] 捐赠节点地区检测: ${ip} → ${region}`);
+        logger.info(`[Agent-WS] 捐赠节点地区检测: ${ip} → ${region}`);
       }
     }).catch(() => {});
   } catch {}
@@ -312,7 +313,7 @@ function handleNormalAuth(ws, msg) {
   const nodeToken = node.agent_token;
   const globalToken = db.getSetting('agent_token');
   if (token !== nodeToken && token !== globalToken) {
-    console.log(`[Agent-WS] 节点 #${nodeId} 认证失败：token 不匹配`);
+    logger.info(`[Agent-WS] 节点 #${nodeId} 认证失败：token 不匹配`);
     return ws.close(4005, '认证失败');
   }
 
@@ -346,7 +347,7 @@ function handleNormalAuth(ws, msg) {
   });
 
   ws.send(JSON.stringify({ type: 'auth_ok' }));
-  console.log(`[Agent-WS] 节点 #${nodeId} (${node.name}) 认证成功`);
+  logger.info(`[Agent-WS] 节点 #${nodeId} (${node.name}) 认证成功`);
   db.addAuditLog(null, 'agent_online', `节点 Agent 上线: ${node.name} (${ws._agentState.ip})`, 'system');
 }
 
@@ -358,13 +359,13 @@ function init(server) {
 
   wss.on('connection', (ws, req) => {
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
-    console.log(`[Agent-WS] 新连接 from ${ip}`);
+    logger.info(`[Agent-WS] 新连接 from ${ip}`);
 
     ws._agentState = { authenticated: false, nodeId: null, ip };
 
     ws._authTimer = setTimeout(() => {
       if (!ws._agentState.authenticated) {
-        console.log(`[Agent-WS] 认证超时，断开 ${ip}`);
+        logger.info(`[Agent-WS] 认证超时，断开 ${ip}`);
         ws.close(4001, '认证超时');
       }
     }, AUTH_TIMEOUT);
@@ -386,7 +387,7 @@ function init(server) {
         markDisconnected(nodeId);
         agents.delete(nodeId);
         cleanupPendingCommands(nodeId);
-        console.log(`[Agent-WS] 节点 #${nodeId} 断开连接`);
+        logger.info(`[Agent-WS] 节点 #${nodeId} 断开连接`);
         setTimeout(() => {
           if (!agents.has(nodeId)) {
             try {
@@ -407,7 +408,7 @@ function init(server) {
     });
 
     ws.on('error', (err) => {
-      console.error(`[Agent-WS] 连接错误:`, err.message);
+      logger.error(`[Agent-WS] 连接错误:`, err.message);
     });
   });
 
@@ -430,7 +431,7 @@ function init(server) {
       }
       setTimeout(() => {
         if (agents.has(nodeId) && !agents.get(nodeId)._pongReceived) {
-          console.log(`[Agent-WS] 节点 #${nodeId} pong 超时，断开`);
+          logger.info(`[Agent-WS] 节点 #${nodeId} pong 超时，断开`);
           markDisconnected(nodeId);
           try { agent.ws.terminate(); } catch {}
           agents.delete(nodeId);
@@ -440,7 +441,7 @@ function init(server) {
     }
   }, PING_INTERVAL);
 
-  console.log('[Agent-WS] WebSocket 服务已启动，路径: /ws/agent');
+  logger.info('[Agent-WS] WebSocket 服务已启动，路径: /ws/agent');
 }
 
 /**
@@ -468,7 +469,7 @@ function handleMessage(ws, msg) {
       handlePong(ws);
       break;
     default:
-      console.log(`[Agent-WS] 未知消息类型: ${type}`);
+      logger.info(`[Agent-WS] 未知消息类型: ${type}`);
   }
 }
 
@@ -548,7 +549,7 @@ function handlePong(ws) {
  * @returns {Promise<{success, data?, error?}>}
  */
 function sendCommand(nodeId, command) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const agent = agents.get(nodeId);
     if (!agent || agent.ws.readyState !== 1) {
       return resolve({ success: false, error: 'Agent 不在线' });
@@ -562,7 +563,7 @@ function sendCommand(nodeId, command) {
       resolve({ success: false, error: '指令超时' });
     }, CMD_TIMEOUT);
 
-    pendingCommands.set(id, { resolve, reject, timer, nodeId });
+    pendingCommands.set(id, { resolve, timer, nodeId });
 
     try {
       agent.ws.send(JSON.stringify(payload));

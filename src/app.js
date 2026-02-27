@@ -334,11 +334,11 @@ function gracefulShutdown(signal) {
     } catch (_) {}
     process.exit(0);
   });
-  // 5秒超时强制退出
+  // 12秒超时强制退出（给部署/SSH操作更多收尾时间）
   setTimeout(() => {
     logger.warn('优雅关闭超时，强制退出');
     process.exit(1);
-  }, 5000);
+  }, 12000);
 }
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
