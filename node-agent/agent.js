@@ -151,8 +151,22 @@ async function checkChinaReachable() {
   }
 }
 
-// IPv6 连通性检测
+// 检测本机是否有全局 IPv6 地址
+function hasGlobalIPv6() {
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of ifaces[name]) {
+      if (iface.family === 'IPv6' && !iface.internal && !iface.address.startsWith('fe80')) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// IPv6 连通性检测（没有 IPv6 地址的节点直接跳过）
 async function checkIPv6Reachable() {
+  if (!hasGlobalIPv6()) return null; // null = 不适用
   try {
     return await tcpProbe(IPV6_PROBE_TARGET.host, IPV6_PROBE_TARGET.port, 5000);
   } catch {
