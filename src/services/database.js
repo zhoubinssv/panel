@@ -31,6 +31,18 @@ function getDb() {
   return db;
 }
 
+function closeDb() {
+  if (db) {
+    db.close();
+    db = null;
+  }
+}
+
+function reopenDb() {
+  closeDb();
+  return getDb();
+}
+
 function initRepos() {
   const deps = { getDb };
   settingsRepo.init(deps);
@@ -352,10 +364,17 @@ function initTables() {
     CREATE TABLE IF NOT EXISTS donate_tokens (
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
+      protocol_choice TEXT DEFAULT 'vless',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       PRIMARY KEY (token)
     )
   `);
+
+  // 迁移：donate_tokens 增加协议字段
+  const donateTokenCols = db.prepare("PRAGMA table_info(donate_tokens)").all().map(c => c.name);
+  if (!donateTokenCols.includes('protocol_choice')) {
+    try { db.exec("ALTER TABLE donate_tokens ADD COLUMN protocol_choice TEXT DEFAULT 'vless'"); } catch(_) {}
+  }
 
   // Sprint 7: 清理废弃 AI 表
   db.exec("DROP TABLE IF EXISTS ai_providers");
@@ -447,6 +466,8 @@ function initTables() {
 // 导出所有函数（向后兼容）
 module.exports = {
   getDb,
+  closeDb,
+  reopenDb,
   // 用户
   findOrCreateUser: (...a) => userRepo.findOrCreateUser(...a),
   getUserBySubToken: (...a) => userRepo.getUserBySubToken(...a),

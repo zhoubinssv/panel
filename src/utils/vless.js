@@ -40,7 +40,8 @@ function generateV2raySub(nodes, trafficInfo) {
       infoLinks.push(buildInfoLink(`📊 已用: ${formatBytes(used)} | 无限制`));
     }
   }
-  const links = [...infoLinks, ...nodes.map(n => buildVlessLink(n))].join('\n');
+  // 显式传入 uuid，优先使用调用方注入的用户专属 UUID
+  const links = [...infoLinks, ...nodes.map(n => buildVlessLink(n, n.uuid))].join('\n');
   return Buffer.from(links).toString('base64');
 }
 
@@ -242,11 +243,21 @@ function randomPort(min = 10000, max = 60000) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function generateV2raySubForUser(userNodes, trafficInfo) {
+  return generateV2raySub(userNodes, trafficInfo);
+}
+
+function generateClashSubForUser(userNodes) {
+  return generateClashSub(userNodes);
+}
+
+function generateSingboxSubForUser(userNodes) {
+  return generateSingboxSub(userNodes);
+}
+
 module.exports = {
   buildVlessLink, generateV2raySub, generateClashSub, generateSingboxSub,
-  generateV2raySubForUser: generateV2raySub,
-  generateClashSubForUser: generateClashSub,
-  generateSingboxSubForUser: generateSingboxSub,
+  generateV2raySubForUser, generateClashSubForUser, generateSingboxSubForUser,
   buildSsLink, generateV2raySsSub, generateClashSsSub, generateSingboxSsSub,
-  detectClient, randomPort
+  detectClient, randomPort, formatBytes
 };

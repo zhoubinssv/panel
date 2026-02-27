@@ -281,11 +281,7 @@ router.get('/sub/:token', subLimiter, (req, res) => {
   // 检查缓存
   const cached = _subCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < SUB_CACHE_TTL) {
-    // 异步记录访问日志
-    const user = db.getUserBySubToken(token);
-    if (user) {
-      db.logSubAccess(user.id, clientIP, ua);
-    }
+    if (cached.userId) db.logSubAccess(cached.userId, clientIP, ua);
     res.set(cached.headers);
     return res.send(cached.body);
   }
@@ -343,7 +339,7 @@ router.get('/sub/:token', subLimiter, (req, res) => {
       'Cache-Control': 'no-cache'
     };
     const body = generateClashSubForUser(finalNodes);
-    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
     res.set(headers);
     return res.send(body);
   }
@@ -356,7 +352,7 @@ router.get('/sub/:token', subLimiter, (req, res) => {
       'Cache-Control': 'no-cache'
     };
     const body = generateSingboxSubForUser(finalNodes);
-    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
     res.set(headers);
     return res.send(body);
   }
@@ -369,7 +365,7 @@ router.get('/sub/:token', subLimiter, (req, res) => {
       'Cache-Control': 'no-cache'
     };
     const body = generateV2raySubForUser(finalNodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes });
-    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
     res.set(headers);
     res.send(body);
   }
@@ -392,8 +388,7 @@ router.get('/sub6/:token', subLimiter, (req, res) => {
 
   const cached = _subCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < SUB_CACHE_TTL) {
-    const user = db.getUserBySubToken(token);
-    if (user) db.logSubAccess(user.id, clientIP, ua);
+    if (cached.userId) db.logSubAccess(cached.userId, clientIP, ua);
     res.set(cached.headers);
     return res.send(cached.body);
   }
@@ -437,7 +432,7 @@ router.get('/sub6/:token', subLimiter, (req, res) => {
       'Cache-Control': 'no-cache'
     };
     const body = generateClashSsSub(finalNodes);
-    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
     res.set(headers);
     return res.send(body);
   }
@@ -450,7 +445,7 @@ router.get('/sub6/:token', subLimiter, (req, res) => {
       'Cache-Control': 'no-cache'
     };
     const body = generateSingboxSsSub(finalNodes);
-    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
     res.set(headers);
     return res.send(body);
   }
@@ -463,7 +458,7 @@ router.get('/sub6/:token', subLimiter, (req, res) => {
       'Cache-Control': 'no-cache'
     };
     const body = generateV2raySsSub(finalNodes, { upload: traffic.total_up, download: traffic.total_down, total: totalBytes });
-    _subCache.set(cacheKey, { headers, body, ts: Date.now() });
+    _subCache.set(cacheKey, { headers, body, ts: Date.now(), userId: user.id });
     res.set(headers);
     res.send(body);
   }

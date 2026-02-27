@@ -48,14 +48,28 @@ router.post('/backups/restore', (req, res) => {
   if (!fs.existsSync(backupPath)) return res.status(404).json({ error: '备份文件不存在' });
 
   const dbPath = path.join(__dirname, '..', '..', '..', 'data', 'panel.db');
+  const walPath = `${dbPath}-wal`;
+  const shmPath = `${dbPath}-shm`;
+
   try {
     // 先备份当前数据库
     performBackup(db.getDb());
+
+    // 关闭连接后再覆盖，避免 WAL/映射状态不一致
+    db.closeDb();
+    if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
+    if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
+
     // 复制备份文件覆盖当前数据库
     fs.copyFileSync(backupPath, dbPath);
+
+    // 立即重建连接，确保后续请求使用新数据库文件
+    db.reopenDb();
     db.addAuditLog(null, 'backup_restore', `从备份恢复: ${name}`, req.ip);
-    res.json({ ok: true, message: '恢复成功，请重启面板' });
+    res.json({ ok: true, message: '恢复成功' });
   } catch (err) {
+    // 尽量恢复服务可用性
+    try { db.reopenDb(); } catch (_) {}
     res.status(500).json({ ok: false, error: err.message });
   }
 });
