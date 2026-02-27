@@ -124,7 +124,13 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
           logger.info(`[Agent-WS] 捐赠节点 IPv6 检测成功: ${ipv6}`);
         } else {
           const failMsg = protoChoice === 'ss' ? '❌ 未检测到 IPv6，无法部署 SS 节点' : '⚠️ 未检测到 IPv6，仅支持 VLESS';
-          d.prepare('UPDATE node_donations SET remark = ? WHERE id = ?').run(failMsg, donation.id);
+          if (protoChoice === 'ss') {
+            // 纯 SS 且无 IPv6：自动结束审核，避免长期卡 pending
+            d.prepare("UPDATE node_donations SET status = 'rejected', remark = ? WHERE id = ?").run(failMsg, donation.id);
+            db.addAuditLog(null, 'donate_reject_auto', `自动拒绝捐赠: ${ip} (选择SS但无IPv6)`, 'system');
+          } else {
+            d.prepare('UPDATE node_donations SET remark = ? WHERE id = ?').run(failMsg, donation.id);
+          }
           logger.info(`[Agent-WS] 捐赠节点 ${ip} 无 IPv6 (选择: ${protoChoice})`);
         }
       } catch (e) {
