@@ -63,7 +63,7 @@
       <% const _resetLabels = { 0: '每7天', 1: '每7天', 2: '每15天', 3: '每月', 4: '永不' }; %>
       <div class="flex items-center justify-between mb-3 flex-wrap gap-1.5">
         <div class="flex items-center gap-2 text-[11px]">
-          <h2 class="text-white font-semibold text-sm">📡 个人订阅</h2>
+          <h2 class="<%= user.is_donor ? 'text-amber-300' : 'text-white' %> font-semibold text-sm">📡 个人订阅</h2>
           <span class="text-gray-600">🍑 已运行 <span class="text-gray-400"><%= _runDays %></span> 天 · Lv.<%= user.trust_level || 0 %><%= user.is_donor ? ' · 🎁捐赠者' : '' %></span>
         </div>
         <div class="text-[11px] text-gray-400">
