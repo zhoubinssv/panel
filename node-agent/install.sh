@@ -2,17 +2,22 @@
 set -euo pipefail
 
 # vless-agent 安装脚本
-# 用法: ./install.sh <server_url> <token> <node_id>
+# 用法: ./install.sh <server_url> <token> <node_id> [--check-ipv6]
 
 if [ $# -lt 3 ]; then
-  echo "用法: $0 <server_url> <token> <node_id>"
+  echo "用法: $0 <server_url> <token> <node_id> [--check-ipv6]"
   echo "示例: $0 wss://vip.vip.sd/ws/agent my-secret-token 123"
+  echo "  加 --check-ipv6 开启 IPv6 连通性检测（SS 节点用）"
   exit 1
 fi
 
 SERVER_URL="$1"
 TOKEN="$2"
 NODE_ID="$3"
+CHECK_IPV6=false
+if [ "${4:-}" = "--check-ipv6" ]; then
+  CHECK_IPV6=true
+fi
 AGENT_DIR="/opt/vless-agent"
 CONFIG_DIR="/etc/vless-agent"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -37,7 +42,8 @@ cat > "${CONFIG_DIR}/config.json" <<EOF
 {
   "server": "${SERVER_URL}",
   "token": "${TOKEN}",
-  "nodeId": ${NODE_ID}
+  "nodeId": ${NODE_ID},
+  "checkIPv6": ${CHECK_IPV6}
 }
 EOF
 chmod 600 "${CONFIG_DIR}/config.json"

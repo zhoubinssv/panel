@@ -523,8 +523,9 @@ async function installAgentOnNode(ssh, nodeId, db) {
   await sftpWriteFile(ssh, '/opt/vless-agent/agent.js', agentCode);
   await ssh.execCommand('chmod 755 /opt/vless-agent/agent.js');
 
-  // 写入配置
-  const configJson = JSON.stringify({ server: serverUrl, token: agentToken, nodeId }, null, 2);
+  // 写入配置（根据协议决定是否开启 IPv6 检测）
+  const needCheckIPv6 = node.protocol === 'ss' || !!findPeerNode(node, db);
+  const configJson = JSON.stringify({ server: serverUrl, token: agentToken, nodeId, checkIPv6: needCheckIPv6 }, null, 2);
   await ssh.execCommand('mkdir -p /etc/vless-agent');
   await sftpWriteFile(ssh, '/etc/vless-agent/config.json', configJson);
   await ssh.execCommand('chmod 600 /etc/vless-agent/config.json');
