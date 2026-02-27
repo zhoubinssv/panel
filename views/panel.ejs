@@ -33,20 +33,20 @@
     <!-- 流量概览 -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#f43f5e">
-        <p class="text-gray-500 text-xs mb-1">节点在线用户</p>
-        <p class="text-rose-400 text-lg font-bold" id="online-count">0 人</p>
+        <p class="text-faint text-xs mb-1">节点在线用户</p>
+        <p class="text-rose-400 text-xl font-bold mono-num" id="online-count">0 人</p>
       </div>
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#8b5cf6">
-        <p class="text-gray-500 text-xs mb-1">全站已用</p>
-        <p class="text-violet-400 text-lg font-bold" id="global-traffic"><%= formatBytes(globalTraffic.total_up + globalTraffic.total_down) %></p>
+        <p class="text-faint text-xs mb-1">全站已用</p>
+        <p class="text-violet-400 text-xl font-bold mono-num" id="global-traffic"><%= formatBytes(globalTraffic.total_up + globalTraffic.total_down) %></p>
       </div>
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#fb923c">
-        <p class="text-gray-500 text-xs mb-1">已用流量</p>
-        <p class="text-orange-400 text-lg font-bold" id="used-traffic"><%= formatBytes(traffic.total_up + traffic.total_down) %></p>
+        <p class="text-faint text-xs mb-1">已用流量</p>
+        <p class="text-orange-400 text-xl font-bold mono-num" id="used-traffic"><%= formatBytes(traffic.total_up + traffic.total_down) %></p>
       </div>
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#06b6d4">
         <p class="text-gray-500 text-xs mb-1"><%= expiresAt ? '剩余流量 / 到期' : '剩余流量' %></p>
-        <p class="text-cyan-400 text-lg font-bold" id="remaining-traffic">
+        <p class="text-cyan-400 text-xl font-bold mono-num" id="remaining-traffic">
           <%= trafficLimit > 0 ? formatBytes(Math.max(0, trafficLimit - traffic.total_up - traffic.total_down)) : '∞' %>
           <% if (expiresAt) { %>
             <% const _daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000); %>
@@ -75,8 +75,8 @@
           <div class="flex flex-wrap gap-2 sub-btn-row">
             <input type="text" readonly value="<%= subUrl %>" id="sub-link"
                    class="flex-1 min-w-0 bg-black/30 text-rose-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
-            <button onclick="copySubLink()" class="bg-rose-600 hover:bg-rose-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
-            <button onclick="showSubQr()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
+            <button onclick="copySubLink()" class="btn-primary px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
+            <button onclick="showSubQr()" class="btn-info px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
           </div>
         </div>
         <div>
@@ -84,8 +84,8 @@
           <div class="flex flex-wrap gap-2 sub-btn-row">
             <input type="text" readonly value="<%= subUrl6 %>" id="sub6-link"
                    class="flex-1 min-w-0 bg-black/30 text-cyan-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
-            <button onclick="copySub6Link()" class="bg-rose-600 hover:bg-rose-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
-            <button onclick="showSub6Qr()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
+            <button onclick="copySub6Link()" class="btn-primary px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
+            <button onclick="showSub6Qr()" class="btn-info px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
           </div>
         </div>
       </div>
@@ -113,7 +113,7 @@
       <div class="flex items-center justify-between mb-3 gap-2">
         <h2 class="text-white font-semibold">🌐 可用节点</h2>
         <div class="flex items-center gap-2">
-          <span class="text-gray-600 text-xs"><%= userNodes.length %> 个节点</span>
+          <span class="text-faint text-xs mono-num"><%= userNodes.length %> 个节点</span>
         </div>
       </div>
       <div class="mb-3">
@@ -147,8 +147,8 @@
             <p class="text-gray-500">暂无可用节点</p>
           </div>
         <% } else { _groups[gName].forEach(function(n) { %>
-          <div class="glass rounded-2xl p-4 node-card" data-protocol="<%= (n.protocol || '').toLowerCase() %>" data-search="<%= (n.name || '') + ' ' + (n.region || '') + ' ' + (n.protocol || '') + ' ' + (n.tags || '') %>">
-            <div class="flex items-center justify-between mb-2.5">
+          <div class="glass rounded-2xl p-3.5 node-card" data-protocol="<%= (n.protocol || '').toLowerCase() %>" data-search="<%= (n.name || '') + ' ' + (n.region || '') + ' ' + (n.protocol || '') + ' ' + (n.tags || '') %>">
+            <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-2 min-w-0">
                 <% if (n.remark && n.remark.includes('被墙')) { %>
                   <span class="shrink-0 inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" title="被墙"></span>
@@ -167,11 +167,11 @@
                 <% } %>
               </div>
             </div>
-            <% if (n.region) { %><p class="text-gray-400 text-xs mb-3"><%= n.region %><% if (n.tags) { %> · <span class="text-gray-500 text-[11px]"><%= n.tags %></span><% } %></p><% } %>
-            <div class="bg-black/30 rounded-lg p-2.5 mb-2.5 overflow-hidden">
-              <code class="text-rose-300 text-[11px] break-all select-all font-mono vless-link leading-relaxed block max-h-20 overflow-y-auto" id="link-<%= n.id %>"><%= n.link %></code>
+            <% if (n.region) { %><p class="text-dim text-xs mb-2"><%= n.region %><% if (n.tags) { %> · <span class="text-faint text-[11px]"><%= n.tags %></span><% } %></p><% } %>
+            <div class="bg-black/30 rounded-lg p-2 mb-2 overflow-hidden">
+              <code class="text-rose-300 text-[11px] break-all select-all font-mono vless-link leading-relaxed block max-h-14 overflow-y-auto" id="link-<%= n.id %>"><%= n.link %></code>
             </div>
-            <button onclick="copyLink(<%= n.id %>)" class="w-full bg-rose-600/80 hover:bg-rose-500 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none text-white text-xs py-2.5 rounded-lg transition font-medium">复制链接</button>
+            <button onclick="copyLink(<%= n.id %>)" class="w-full btn-primary focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none text-xs py-2 rounded-lg transition font-medium">复制链接</button>
           </div>
         <% }); } %>
       </div>
