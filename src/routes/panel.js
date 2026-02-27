@@ -11,8 +11,11 @@ const { escapeHtml } = require('../utils/escapeHtml');
 
 // 模块级缓存（替代 global 变量）
 const _abuseCache = new Map();
+const _globalTrafficCache = { data: null, ts: 0 };
+const _nodeAiTagsCache = { data: {}, ts: 0 };
 
-
+const GLOBAL_TRAFFIC_TTL = 30000; // 30s
+const NODE_AI_TAGS_TTL = 5 * 60 * 1000; // 5m
 
 const router = express.Router();
 
@@ -104,6 +107,45 @@ function nextTokenResetAtMs(user, now = new Date()) {
   return next.getTime();
 }
 
+function getGlobalTrafficCached() {
+  const now = Date.now();
+  if (_globalTrafficCache.data && now - _globalTrafficCache.ts < GLOBAL_TRAFFIC_TTL) {
+    return _globalTrafficCache.data;
+  }
+  const data = db.getGlobalTraffic();
+  _globalTrafficCache.data = data;
+  _globalTrafficCache.ts = now;
+  return data;
+}
+
+function getNodeAiTagsCached(nodes) {
+  const now = Date.now();
+  if (_nodeAiTagsCache.data && now - _nodeAiTagsCache.ts < NODE_AI_TAGS_TTL) {
+    return _nodeAiTagsCache.data;
+  }
+
+  const nodeAiTags = {};
+  try {
+    const d = db.getDb();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+    const swapNodes = d.prepare(`
+      SELECT DISTINCT detail FROM audit_log
+      WHERE action IN ('auto_swap_ip','swap_ip','ip_rotated') AND created_at > ?
+    `).all(sevenDaysAgo);
+
+    nodes.forEach(n => {
+      const tags = [];
+      const swapMatch = swapNodes.some(r => (r.detail || '').includes(n.name) || (r.detail || '').includes(n.host));
+      if (swapMatch) tags.push('ai_swap');
+      if (tags.length) nodeAiTags[n.id] = tags;
+    });
+  } catch (_) {}
+
+  _nodeAiTagsCache.data = nodeAiTags;
+  _nodeAiTagsCache.ts = now;
+  return nodeAiTags;
+}
+
 router.get('/', requireAuth, (req, res) => {
   const isVip = db.isInWhitelist(req.user.nodeloc_id);
   const user = req.user;
@@ -116,36 +158,14 @@ router.get('/', requireAuth, (req, res) => {
   const nodes = db.getAllNodes(true).filter(n => isVip || req.user.trust_level >= (n.min_level || 0));
 
   const traffic = db.getUserTraffic(user.id);
-  const globalTraffic = db.getGlobalTraffic();
+  const globalTraffic = getGlobalTrafficCached();
 
   const userNodes = nodes.map(n => {
     const userUuid = db.getUserNodeUuid(user.id, n.id);
     return { ...n, link: n.protocol === 'ss' ? buildSsLink(n, userUuid.uuid) : buildVlessLink(n, userUuid.uuid) };
   });
 
-  // 查询节点 AI 操作标签
-  const nodeAiTags = {};
-  try {
-    const d = db.getDb();
-    const deployNodes = d.prepare("SELECT DISTINCT detail FROM audit_log WHERE action = 'deploy'").all();
-    deployNodes.forEach(r => {
-      // detail 格式通常含节点名
-      const match = (r.detail || '').match(/节点.*?[:：]\s*(.+)/);
-      if (match) nodeAiTags[match[1]] = nodeAiTags[match[1]] || [];
-    });
-    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-    const swapNodes = d.prepare(`
-      SELECT DISTINCT detail FROM audit_log
-      WHERE action IN ('auto_swap_ip','swap_ip','ip_rotated') AND created_at > ?
-    `).all(sevenDaysAgo);
-    // 标记所有节点
-    nodes.forEach(n => {
-      const tags = [];
-      const swapMatch = swapNodes.some(r => (r.detail || '').includes(n.name) || (r.detail || '').includes(n.host));
-      if (swapMatch) tags.push('ai_swap');
-      if (tags.length) nodeAiTags[n.id] = tags;
-    });
-  } catch (_) {}
+  const nodeAiTags = getNodeAiTagsCached(nodes);
 
   res.render('panel', {
     user, userNodes, traffic, globalTraffic, formatBytes,
@@ -405,7 +425,7 @@ router.get('/api/stats', requireAuth, (req, res) => {
   const trafficLimit = user ? (user.traffic_limit || 0) : 0;
   const totalUsed = (traffic.total_up || 0) + (traffic.total_down || 0);
   const remaining = trafficLimit > 0 ? Math.max(0, trafficLimit - totalUsed) : -1; // -1 = unlimited
-  const globalTraffic = db.getGlobalTraffic();
+  const globalTraffic = getGlobalTrafficCached();
   res.json({
     online: summary.online || 0,
     totalUsed,
