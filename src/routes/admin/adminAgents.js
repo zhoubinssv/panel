@@ -27,12 +27,26 @@ router.post('/agents/:nodeId/command', async (req, res) => {
 router.post('/agents/update-all', async (req, res) => {
   const agents = agentWs.getConnectedAgents();
   if (agents.length === 0) return res.json({ ok: true, results: [], message: '无在线 Agent' });
+
   const results = await Promise.all(agents.map(async (a) => {
     const r = await agentWs.sendCommand(a.nodeId, { type: 'self_update' });
     return { nodeId: a.nodeId, name: a.nodeName, success: r.success, error: r.error };
   }));
-  db.addAuditLog(req.user.id, 'agent_update_all', `批量更新 Agent: ${agents.length} 个`, req.ip);
-  res.json({ ok: true, results });
+
+  const successCount = results.filter(r => r.success).length;
+  const failList = results.filter(r => !r.success);
+  const failSummary = failList.length
+    ? ` | 失败: ${failList.map(f => `#${f.nodeId}-${f.name}${f.error ? `(${f.error})` : ''}`).join('; ')}`
+    : '';
+
+  db.addAuditLog(
+    req.user.id,
+    'agent_update_all',
+    `批量更新 Agent: 总计${agents.length}，成功${successCount}，失败${failList.length}${failSummary}`,
+    req.ip
+  );
+
+  res.json({ ok: true, results, summary: { total: agents.length, success: successCount, failed: failList.length } });
 });
 
 router.post('/agent-token/regenerate', (req, res) => {
