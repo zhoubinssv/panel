@@ -101,39 +101,46 @@ router.post('/nodes/deploy', (req, res) => {
   res.redirect('/admin?msg=deploying#nodes');
 });
 
-router.post('/nodes/:id/delete', (req, res) => {
+router.post('/nodes/:id/delete', async (req, res) => {
   const id = parseIntId(req.params.id);
   if (!id) return res.status(400).json({ error: '参数错误' });
   const node = db.getNodeById(id);
   if (!node) return res.redirect('/admin#nodes');
 
   const stopCmd = 'systemctl stop xray && systemctl disable xray && systemctl stop vless-agent && systemctl disable vless-agent';
+  let stopErr = null;
 
-  (async () => {
-    try {
-      if (agentWs.isAgentOnline(node.id)) {
-        await agentWs.sendCommand(node.id, { type: 'exec', command: stopCmd });
-      } else if (node.ssh_password || node.ssh_key_path) {
-        const { NodeSSH } = require('node-ssh');
-        const ssh = new NodeSSH();
-        const connectOpts = {
-          host: node.ssh_host || node.host, port: node.ssh_port || 22,
-          username: node.ssh_user || 'root', readyTimeout: 10000
-        };
-        if (node.ssh_key_path) connectOpts.privateKeyPath = node.ssh_key_path;
-        else connectOpts.password = node.ssh_password;
-        await ssh.connect(connectOpts);
-        await ssh.execCommand(stopCmd, { execOptions: { timeout: 15000 } });
-        ssh.dispose();
-      }
-    } catch (err) {
-      console.error(`[删除节点] 停止远端服务失败: ${err.message}`);
+  try {
+    if (agentWs.isAgentOnline(node.id)) {
+      await agentWs.sendCommand(node.id, { type: 'exec', command: stopCmd });
+    } else if (node.ssh_password || node.ssh_key_path) {
+      const { NodeSSH } = require('node-ssh');
+      const ssh = new NodeSSH();
+      const connectOpts = {
+        host: node.ssh_host || node.host, port: node.ssh_port || 22,
+        username: node.ssh_user || 'root', readyTimeout: 10000
+      };
+      if (node.ssh_key_path) connectOpts.privateKeyPath = node.ssh_key_path;
+      else connectOpts.password = node.ssh_password;
+      await ssh.connect(connectOpts);
+      await ssh.execCommand(stopCmd, { execOptions: { timeout: 15000 } });
+      ssh.dispose();
     }
-    db.deleteNode(node.id);
-    db.addAuditLog(req.user.id, 'node_delete', `删除节点: ${node.name}`, req.ip);
-  })();
+  } catch (err) {
+    stopErr = err;
+    console.error(`[删除节点] 停止远端服务失败: ${err.message}`);
+  }
 
-  res.redirect('/admin#nodes');
+  db.deleteNode(node.id);
+  db.addAuditLog(
+    req.user.id,
+    'node_delete',
+    `删除节点: ${node.name}${stopErr ? `（远端停服务失败: ${stopErr.message}）` : ''}`,
+    req.ip
+  );
+
+  if (stopErr) return res.redirect('/admin?msg=node_delete_remote_stop_failed#nodes');
+  return res.redirect('/admin#nodes');
 });
 
 router.post('/nodes/:id/update-host', (req, res) => {
@@ -263,20 +270,12 @@ router.post('/nodes/manual', (req, res) => {
     ip_version: ipv,
     region: (region || '').trim(),
     is_manual: 1,
+    ss_method: proto === 'ss' ? (ss_method || 'aes-256-gcm') : null,
+    ss_password: proto === 'ss' ? (ss_password || '') : null,
   };
 
   const result = db.addNode(nodeData);
   const nodeId = result.lastInsertRowid;
-
-  // SS 特有字段通过 updateNode 写入
-  if (proto === 'ss') {
-    db.updateNode(nodeId, {
-      ss_method: ss_method || 'aes-256-gcm',
-      ss_password: ss_password || '',
-    });
-  }
-  // ip_version 也通过 updateNode 写入
-  db.updateNode(nodeId, { ip_version: ipv });
 
   db.addAuditLog(req.user.id, 'node_add_manual', `手动添加节点: ${name} (${proto}/IPv${ipv})`, req.ip);
   res.json({ ok: true, id: nodeId });
