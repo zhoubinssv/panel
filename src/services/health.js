@@ -279,6 +279,28 @@ function updateFromAgentReport(nodeId, reportData) {
       return; // 提前返回，不更新节点为离线
     }
     // newFailCount > FAIL_THRESHOLD: 已经通知过了，静默更新状态即可
+    if (newFailCount > FAIL_THRESHOLD && remark.includes('Xray 离线')) {
+      const nowMs = Date.now();
+      const lastRestart = _xrayRestartCooldown.get(nodeId) || 0;
+      const cooldownMs = 10 * 60 * 1000;
+      if (nowMs - lastRestart >= cooldownMs) {
+        _xrayRestartCooldown.set(nodeId, nowMs);
+        (async () => {
+          try {
+            const agentWs = require('./agent-ws');
+            if (!agentWs.isAgentOnline(nodeId)) return;
+            const r = await agentWs.sendCommand(nodeId, { type: 'restart_xray' });
+            if (r.success) {
+              db.addAuditLog(null, 'auto_repair', `${node.name}: 自动拉起 Xray 成功(冷却重试)`, 'system');
+            } else {
+              db.addAuditLog(null, 'auto_repair_fail', `${node.name}: 自动拉起 Xray 失败(冷却重试): ${r.error || 'unknown'}`, 'system');
+            }
+          } catch (e) {
+            db.addAuditLog(null, 'auto_repair_fail', `${node.name}: 自动拉起 Xray 异常(冷却重试): ${e.message}`, 'system');
+          }
+        })();
+      }
+    }
   } else {
     // 恢复在线：清零计数
     if (prevFailCount >= FAIL_THRESHOLD && !node.is_active) {
