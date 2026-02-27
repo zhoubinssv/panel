@@ -15,42 +15,41 @@
 
     <!-- 标题 -->
     <div class="text-center">
-      <h1 class="text-white text-2xl font-bold">🎁 捐赠节点</h1>
-      <p class="text-gray-400 text-sm mt-2">分享你的闲置服务器，🍑 蜜桃酱会帮你搞定一切</p>
+      <h1 class="text-white text-2xl font-bold">🍑 共建蜜桃网络</h1>
+      <p class="text-gray-400 text-sm mt-2">一台闲置的服务器，就能让更多人自由上网</p>
     </div>
 
     <!-- 说明卡片 -->
     <div class="glass rounded-2xl p-6 space-y-4">
-      <h2 class="text-white font-semibold">📋 如何捐赠</h2>
+      <h2 class="text-white font-semibold">✨ 三分钟，一行命令</h2>
       <div class="space-y-3 text-gray-400 text-sm leading-relaxed">
         <div class="flex gap-3">
-          <span class="text-rose-400 font-bold shrink-0">1</span>
-          <span>选择部署协议，复制下方安装命令</span>
+          <span class="text-rose-400 font-bold shrink-0">①</span>
+          <span>选择协议，复制安装命令</span>
         </div>
         <div class="flex gap-3">
-          <span class="text-rose-400 font-bold shrink-0">2</span>
-          <span>在你的服务器上以 root 身份执行</span>
+          <span class="text-rose-400 font-bold shrink-0">②</span>
+          <span>在服务器上以 root 执行，剩下的交给蜜桃酱</span>
         </div>
         <div class="flex gap-3">
-          <span class="text-rose-400 font-bold shrink-0">3</span>
-          <span>脚本自动安装 Xray + Agent 并连回平台</span>
-        </div>
-        <div class="flex gap-3">
-          <span class="text-rose-400 font-bold shrink-0">4</span>
-          <span>🍑 蜜桃酱自动审核上线，无需等待人工处理</span>
+          <span class="text-rose-400 font-bold shrink-0">③</span>
+          <span>自动部署、自动审核、自动上线 — 全程无需人工干预</span>
         </div>
       </div>
       <div class="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
-        🎁 捐赠者福利：捐赠者徽章 + 订阅每月重置（而非每周）
+        🎁 <b>捐赠者专属</b>：捐赠者徽章 + 订阅流量每月重置（普通用户每周）
+      </div>
+      <div class="mt-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
+        🔒 <b>安全保障</b>：蜜桃酱会持续校验节点配置完整性，篡改即下线，保护每一位用户的流量安全
       </div>
       <div class="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
-        ⚠️ 要求：Linux 系统（Debian/Ubuntu/CentOS）、公网 IP、root 权限、至少 512MB 内存
+        💻 <b>服务器要求</b>：Linux（Debian / Ubuntu / CentOS）· 公网 IP · root 权限 · 512MB+ 内存
       </div>
     </div>
 
     <!-- 安装命令 -->
     <div class="glass rounded-2xl p-6 space-y-4">
-      <h2 class="text-white font-semibold">🚀 安装命令</h2>
+      <h2 class="text-white font-semibold">🚀 一键部署</h2>
       <% if (donations.some(d => d.status === 'pending')) { %>
         <div class="p-3 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-white text-xs mb-3 font-medium">
           ✅ Agent 已连接，🍑 蜜桃酱正在自动审核中...
@@ -77,14 +76,14 @@
       <pre class="bg-black/40 rounded-xl p-4 text-green-400 text-xs overflow-x-auto whitespace-pre-wrap break-all select-all" id="install-cmd"><%= installCmd %></pre>
       <div class="flex items-center gap-3 mt-3">
         <button onclick="copyCmd()" class="text-xs px-4 py-2 rounded-lg bg-rose-500 text-white hover:bg-rose-400 transition shadow-lg font-medium" id="copy-btn">📋 复制命令</button>
-        <span class="text-gray-300 text-xs">在服务器上执行此命令，Agent 连接成功后将自动提交审核</span>
+        <span class="text-gray-500 text-xs">粘贴到服务器回车即可，蜜桃酱会自动接管后续流程</span>
       </div>
     </div>
 
     <!-- 我的捐赠 -->
     <% if (donations.length > 0) { %>
     <div class="glass rounded-2xl p-6 space-y-4">
-      <h2 class="text-white font-semibold">📦 我的捐赠</h2>
+      <h2 class="text-white font-semibold">📦 我的贡献</h2>
       <div class="space-y-2">
         <% donations.forEach(d => { %>
           <div class="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5">
@@ -113,7 +112,7 @@
     <!-- 捐赠者荣誉 -->
     <% if (donors.length > 0) { %>
     <div class="glass rounded-2xl p-6 space-y-4">
-      <h2 class="text-white font-semibold">🏆 捐赠者荣誉</h2>
+      <h2 class="text-white font-semibold">🏆 感谢有你们</h2>
       <div class="space-y-2">
         <% donors.forEach((d, i) => { %>
           <div class="flex items-center justify-between p-3 rounded-xl bg-white/[0.02]">
@@ -131,7 +130,7 @@
   </main>
 
   <!-- 页脚 -->
-  <footer class="text-center py-6 text-gray-600 text-xs">由 🍑 蜜桃酱 AI 无人值守运维</footer>
+  <footer class="text-center py-6 text-gray-600 text-xs">每一台服务器，都是一份善意 · 🍑 蜜桃酱</footer>
 
   <style nonce="<%= nonce %>">
     .proto-btn { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); color: #9ca3af; }
