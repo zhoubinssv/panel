@@ -5,6 +5,7 @@
 const { WebSocketServer } = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
+const net = require('net');
 const db = require('./database');
 const healthService = require('./health');
 const { notify } = require('./notify');
@@ -64,6 +65,17 @@ function cleanupPendingCommands(nodeId) {
   }
 }
 
+function checkTcpPort(host, port, timeout = 5000) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host, port, timeout }, () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on('timeout', () => { socket.destroy(); resolve(false); });
+    socket.on('error', () => { socket.destroy(); resolve(false); });
+  });
+}
+
 function autoFixVlessIpv4(nodeId, node) {
   if (!node || node.protocol !== 'vless' || !node.host || !node.host.includes(':')) return;
 
@@ -114,6 +126,7 @@ function bindDonationToNode(ws, donation, ip, version, capabilities) {
 
 async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
   const d = db.getDb();
+  let createdNodeIds = [];
   try {
     if (protoChoice === 'ss' || protoChoice === 'dual') {
       try {
@@ -154,7 +167,7 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
       const donorName = donor ? (donor.name || donor.username) : `用户${freshDonation.user_id}`;
       const natMode = Number(freshDonation.nat_mode || 0) === 1;
       const preferredNatPort = Number(freshDonation.nat_port || 0);
-      const nodeIds = [];
+      const nodeIds = createdNodeIds;
 
       if (protoChoice === 'vless' || protoChoice === 'dual') {
         let vlessHost = ip;
@@ -219,6 +232,33 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
       }
 
       if (nodeIds.length > 0) {
+        // 1) 先推送配置
+        for (const nid of nodeIds) {
+          try {
+            const n = db.getNodeById(nid);
+            const ok = await getDeploy().syncNodeConfig(n, db);
+            logger.info(`[🍑 蜜桃酱] 配置推送 ${ok ? '✅' : '❌'}: ${n.name}`);
+            if (!ok) throw new Error(`配置推送失败: ${n.name}`);
+          } catch (e) {
+            throw new Error(`配置推送异常: ${e.message}`);
+          }
+        }
+
+        // 2) 审核前硬校验：xray 可重启 + 节点端口可连通
+        const restartCheck = await sendCommand(tempId, { type: 'restart_xray' });
+        if (!restartCheck.success) {
+          throw new Error(`xray.service 校验失败: ${restartCheck.error || 'restart_xray failed'}`);
+        }
+
+        for (const nid of nodeIds) {
+          const n = db.getNodeById(nid);
+          const ok = await checkTcpPort(n.host, n.port, 5000);
+          if (!ok) {
+            throw new Error(`端口探测失败: ${n.name} ${n.host}:${n.port}`);
+          }
+        }
+
+        // 3) 通过后再正式上线
         const tx = d.transaction(() => {
           d.prepare("UPDATE node_donations SET status = 'online', node_id = ?, region = ?, approved_at = datetime('now', 'localtime') WHERE id = ?")
             .run(nodeIds[0], region, donation.id);
@@ -234,16 +274,6 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
         agents.delete(tempId);
         agents.set(mainNodeId, { ws, nodeId: mainNodeId, nodeName: node?.name || `捐赠#${donation.id}`, ip, connectedAt: bjNow(), lastReport: null, reportData: null, _pongReceived: true });
 
-        for (const nid of nodeIds) {
-          try {
-            const n = db.getNodeById(nid);
-            const ok = await getDeploy().syncNodeConfig(n, db);
-            logger.info(`[🍑 蜜桃酱] 配置推送 ${ok ? '✅' : '❌'}: ${n.name}`);
-          } catch (e) {
-            logger.error(`[🍑 蜜桃酱] 配置推送异常: ${e.message}`);
-          }
-        }
-
         try {
           notify.deploy && notify.deploy(node?.name || ip, true, `🍑 蜜桃酱自动审核 | 协议: ${protoChoice} | 捐赠者: ${donorName}`);
         } catch {}
@@ -252,6 +282,22 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
       }
     }
   } catch (e) {
+    try {
+      if (createdNodeIds.length > 0) {
+        const txCleanup = d.transaction((ids) => {
+          const delUuid = d.prepare('DELETE FROM user_node_uuid WHERE node_id = ?');
+          const delNode = d.prepare('DELETE FROM nodes WHERE id = ?');
+          for (const nid of ids) {
+            delUuid.run(nid);
+            delNode.run(nid);
+          }
+        });
+        txCleanup(createdNodeIds);
+      }
+      d.prepare("UPDATE node_donations SET status = 'rejected', remark = ? WHERE id = ? AND status = 'pending'")
+        .run(`❌ 自动审核失败: ${String(e.message || 'unknown').slice(0, 160)}`, donation.id);
+      db.addAuditLog(null, 'donate_reject_auto', `自动拒绝捐赠: ${ip} (校验失败: ${e.message})`, 'system');
+    } catch (_) {}
     logger.error(`[🍑 蜜桃酱] 自动审核异常:`, e.message, e.stack);
   }
 }
