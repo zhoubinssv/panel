@@ -84,7 +84,7 @@ async function rotateAll() {
 
   // 分级订阅 token 重置
   const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
-  const users = db.getAllUsers();
+  const users = db.getUsersForTokenRotation();
   let tokenCount = 0;
   const resetDetails = { lv01: 0, lv2: 0, lv3donor: 0, lv4skip: 0 };
 

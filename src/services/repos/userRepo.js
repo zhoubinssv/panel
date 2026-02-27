@@ -71,6 +71,13 @@ function getAllUsers() {
   `).all();
 }
 
+function getUsersForTokenRotation() {
+  return _getDb().prepare(`
+    SELECT id, trust_level, is_donor, last_token_reset
+    FROM users
+  `).all();
+}
+
 function getAllUsersPaged(limit = 20, offset = 0, search = '', sortBy = 'total_traffic', sortDir = 'DESC') {
   const where = search ? "WHERE u.username LIKE '%' || @search || '%' OR u.name LIKE '%' || @search || '%'" : '';
   const allowedSorts = {
@@ -156,7 +163,7 @@ function autoFreezeExpiredUsers() {
 module.exports = {
   init,
   findOrCreateUser, getUserBySubToken, getUserById, getUserCount,
-  getAllUsers, getAllUsersPaged, blockUser, setUserTrafficLimit,
+  getAllUsers, getUsersForTokenRotation, getAllUsersPaged, blockUser, setUserTrafficLimit,
   isTrafficExceeded, freezeUser, unfreezeUser, autoFreezeInactiveUsers, resetSubToken,
   setUserExpiry, autoFreezeExpiredUsers
 };
