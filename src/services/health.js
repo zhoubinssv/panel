@@ -6,6 +6,8 @@ const { notify, send: notifySend } = require('./notify');
 const _trafficNotifiedCache = new Set();
 // 节点连续失败计数（防抖用，连续 N 次失败才通知掉线）
 const _nodeFailCount = new Map();
+// Xray 自动拉起冷却（避免频繁重启）：nodeId -> lastRestartMs
+const _xrayRestartCooldown = new Map();
 
 // TCP 端口探测
 function checkPort(host, port, timeout = 5000) {
@@ -212,6 +214,30 @@ function updateFromAgentReport(nodeId, reportData) {
       // 达到阈值，触发掉线通知
       console.log(`[Agent] 节点 ${node.name} 连续 ${FAIL_THRESHOLD} 次失败 → ${remark}`);
       db.addAuditLog(null, remark.includes('被墙') ? 'node_blocked' : 'node_xray_down', `${node.name}: ${remark}（连续${FAIL_THRESHOLD}次）`, 'system');
+
+      // Xray 离线：Agent 在线时尝试自动拉起（带冷却）
+      if (remark.includes('Xray 离线')) {
+        const nowMs = Date.now();
+        const lastRestart = _xrayRestartCooldown.get(nodeId) || 0;
+        const cooldownMs = 10 * 60 * 1000;
+        if (nowMs - lastRestart >= cooldownMs) {
+          _xrayRestartCooldown.set(nodeId, nowMs);
+          (async () => {
+            try {
+              const agentWs = require('./agent-ws');
+              if (!agentWs.isAgentOnline(nodeId)) return;
+              const r = await agentWs.sendCommand(nodeId, { type: 'restart_xray' });
+              if (r.success) {
+                db.addAuditLog(null, 'auto_repair', `${node.name}: 自动拉起 Xray 成功`, 'system');
+              } else {
+                db.addAuditLog(null, 'auto_repair_fail', `${node.name}: 自动拉起 Xray 失败: ${r.error || 'unknown'}`, 'system');
+              }
+            } catch (e) {
+              db.addAuditLog(null, 'auto_repair_fail', `${node.name}: 自动拉起 Xray 异常: ${e.message}`, 'system');
+            }
+          })();
+        }
+      }
 
       // 被墙且绑 AWS：自动换 IP
       if (remark.includes('被墙') && node.aws_instance_id) {
