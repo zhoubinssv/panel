@@ -528,9 +528,10 @@ router.get('/donate', requireAuth, (req, res) => {
   }
 
   // 读取当前token的协议/NAT选项
-  const tokenRow = d.prepare('SELECT protocol_choice, nat_mode FROM donate_tokens WHERE token = ?').get(donateToken);
+  const tokenRow = d.prepare('SELECT protocol_choice, nat_mode, nat_port FROM donate_tokens WHERE token = ?').get(donateToken);
   const protocolChoice = tokenRow?.protocol_choice || 'vless';
   const natMode = Number(tokenRow?.nat_mode || 0) === 1;
+  const natPort = Number(tokenRow?.nat_port || 0) || '';
 
   const wsUrl = process.env.AGENT_WS_URL || 'wss://vip.vip.sd/ws/agent';
   const installCmd = `bash <(curl -sL https://vip.vip.sd/donate/install.sh) ${wsUrl} ${donateToken} ${protocolChoice}`;
@@ -545,18 +546,20 @@ router.get('/donate', requireAuth, (req, res) => {
     GROUP BY nd.user_id ORDER BY count DESC LIMIT 10
   `).all();
 
-  res.render('donate', { user, donations, donateToken, installCmd, donors, protocolChoice, natMode });
+  res.render('donate', { user, donations, donateToken, installCmd, donors, protocolChoice, natMode, natPort });
 });
 
 // 保存协议/NAT 选项
 router.post('/donate/set-protocol', requireAuth, (req, res) => {
-  const { protocol, token, natMode } = req.body;
+  const { protocol, token, natMode, natPort } = req.body;
   if (!['vless', 'ss', 'dual'].includes(protocol)) return res.json({ ok: false, error: '无效协议' });
   const nat = natMode ? 1 : 0;
+  const port = Number(natPort);
+  const safeNatPort = (nat && Number.isInteger(port) && port >= 1 && port <= 65535) ? port : null;
   const d = db.getDb();
-  d.prepare('UPDATE donate_tokens SET protocol_choice = ?, nat_mode = ? WHERE token = ? AND user_id = ?').run(protocol, nat, token, req.user.id);
+  d.prepare('UPDATE donate_tokens SET protocol_choice = ?, nat_mode = ?, nat_port = ? WHERE token = ? AND user_id = ?').run(protocol, nat, safeNatPort, token, req.user.id);
   // 同步更新到 node_donations（如果已有连接记录）
-  d.prepare('UPDATE node_donations SET protocol_choice = ?, nat_mode = ? WHERE token = ? AND user_id = ?').run(protocol, nat, token, req.user.id);
+  d.prepare('UPDATE node_donations SET protocol_choice = ?, nat_mode = ?, nat_port = ? WHERE token = ? AND user_id = ?').run(protocol, nat, safeNatPort, token, req.user.id);
   res.json({ ok: true });
 });
 

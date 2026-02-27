@@ -353,6 +353,7 @@ function initTables() {
       region TEXT,
       remark TEXT,
       nat_mode INTEGER DEFAULT 0,
+      nat_port INTEGER,
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       approved_at TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id),
@@ -367,6 +368,7 @@ function initTables() {
       token TEXT UNIQUE NOT NULL,
       protocol_choice TEXT DEFAULT 'vless',
       nat_mode INTEGER DEFAULT 0,
+      nat_port INTEGER,
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       PRIMARY KEY (token)
     )
@@ -380,10 +382,16 @@ function initTables() {
   if (!donateTokenCols.includes('nat_mode')) {
     try { db.exec("ALTER TABLE donate_tokens ADD COLUMN nat_mode INTEGER DEFAULT 0"); } catch(_) {}
   }
+  if (!donateTokenCols.includes('nat_port')) {
+    try { db.exec("ALTER TABLE donate_tokens ADD COLUMN nat_port INTEGER"); } catch(_) {}
+  }
 
   const donationCols = db.prepare("PRAGMA table_info(node_donations)").all().map(c => c.name);
   if (!donationCols.includes('nat_mode')) {
     try { db.exec("ALTER TABLE node_donations ADD COLUMN nat_mode INTEGER DEFAULT 0"); } catch(_) {}
+  }
+  if (!donationCols.includes('nat_port')) {
+    try { db.exec("ALTER TABLE node_donations ADD COLUMN nat_port INTEGER"); } catch(_) {}
   }
 
   // Sprint 7: 清理废弃 AI 表

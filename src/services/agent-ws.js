@@ -153,6 +153,7 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
       const donor = d.prepare('SELECT username, name FROM users WHERE id = ?').get(freshDonation.user_id);
       const donorName = donor ? (donor.name || donor.username) : `用户${freshDonation.user_id}`;
       const natMode = Number(freshDonation.nat_mode || 0) === 1;
+      const preferredNatPort = Number(freshDonation.nat_port || 0);
       const nodeIds = [];
 
       if (protoChoice === 'vless' || protoChoice === 'dual') {
@@ -169,7 +170,11 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
         }
 
         const nodeName = region ? `${region}-${donorName}` : donorName;
-        const port = 10000 + Math.floor(Math.random() * 50000);
+        let port = 10000 + Math.floor(Math.random() * 50000);
+        if (natMode && Number.isInteger(preferredNatPort) && preferredNatPort >= 1 && preferredNatPort <= 65535) {
+          const used = d.prepare('SELECT 1 FROM nodes WHERE host = ? AND port = ? LIMIT 1').get(vlessHost, preferredNatPort);
+          if (!used) port = preferredNatPort;
+        }
         const agentToken = uuidv4();
         const nodeResult = d.prepare(`
                 INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, is_active, agent_token, group_name, remark, is_donation, ssh_host, rotate_port_locked)
@@ -198,7 +203,11 @@ async function autoApproveDonation({ ws, donation, ip, protoChoice, tempId }) {
           const ssName = protoChoice === 'dual'
             ? (region ? `${region}-${donorName}⁶` : `${donorName}⁶`)
             : (region ? `${region}-${donorName}` : donorName);
-          const ssPort = 10000 + Math.floor(Math.random() * 50000);
+          let ssPort = 10000 + Math.floor(Math.random() * 50000);
+          if (natMode && Number.isInteger(preferredNatPort) && preferredNatPort >= 1 && preferredNatPort <= 65535) {
+            const used = d.prepare('SELECT 1 FROM nodes WHERE host = ? AND port = ? LIMIT 1').get(ipv6Addr, preferredNatPort);
+            if (!used) ssPort = preferredNatPort;
+          }
           const ssResult = d.prepare(`
                   INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, ss_method, is_active, agent_token, group_name, remark, is_donation, ssh_host, rotate_port_locked)
                   VALUES (?, ?, ?, ?, 'ss', 6, 'aes-256-gcm', 1, ?, '捐赠节点', '', 1, ?, ?)
@@ -258,7 +267,7 @@ function handleDonationAuth(ws, msg) {
     if (!tokenRecord) {
       return ws.close(4005, '无效的捐赠令牌');
     }
-    d.prepare("INSERT INTO node_donations (user_id, token, server_ip, status, protocol_choice, nat_mode) VALUES (?, ?, ?, 'pending', ?, ?)").run(tokenRecord.user_id, token, ip, tokenRecord.protocol_choice || 'vless', Number(tokenRecord.nat_mode || 0));
+    d.prepare("INSERT INTO node_donations (user_id, token, server_ip, status, protocol_choice, nat_mode, nat_port) VALUES (?, ?, ?, 'pending', ?, ?, ?)").run(tokenRecord.user_id, token, ip, tokenRecord.protocol_choice || 'vless', Number(tokenRecord.nat_mode || 0), Number(tokenRecord.nat_port || 0) || null);
     donation = d.prepare('SELECT * FROM node_donations WHERE token = ?').get(token);
   } else {
     if (donation.status === 'online') {

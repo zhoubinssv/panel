@@ -77,6 +77,11 @@
       <div class="space-y-2">
         <p class="text-gray-400 text-xs">网络类型：</p>
         <button onclick="toggleNat()" id="nat-toggle" class="proto-btn text-xs px-4 py-2 rounded-xl transition font-medium">🧱 NAT 机器（仅轮换 UUID，不轮换端口）</button>
+        <div id="nat-port-wrap" class="hidden mt-2">
+          <label class="text-gray-400 text-xs block mb-1">NAT 开放端口（仅 NAT 显示）</label>
+          <input id="nat-port" type="number" min="1" max="65535" value="<%= natPort || '' %>" placeholder="例如 443"
+            class="w-full max-w-xs bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+        </div>
       </div>
 
       <pre class="cmd-box rounded-xl p-4 text-green-400 text-xs overflow-x-auto whitespace-pre-wrap break-all select-all" id="install-cmd"><%= installCmd %></pre>
@@ -192,6 +197,7 @@
     };
     let currentProto = '<%= protocolChoice || "vless" %>';
     let natMode = <%= natMode ? 'true' : 'false' %>;
+    let natPort = <%= natPort ? Number(natPort) : 'null' %>;
 
     function setProtocol(proto) {
       currentProto = proto;
@@ -205,7 +211,7 @@
       fetch('/donate/set-protocol', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ protocol: proto, token: '<%= donateToken %>', natMode })
+        body: JSON.stringify({ protocol: proto, token: '<%= donateToken %>', natMode, natPort })
       });
     }
 
@@ -214,10 +220,22 @@
       natMode = !natMode;
       const btn = document.getElementById('nat-toggle');
       btn.classList.toggle('proto-active', natMode);
+      const wrap = document.getElementById('nat-port-wrap');
+      if (wrap) wrap.classList.toggle('hidden', !natMode);
       fetch('/donate/set-protocol', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ protocol: currentProto, token: '<%= donateToken %>', natMode })
+        body: JSON.stringify({ protocol: currentProto, token: '<%= donateToken %>', natMode, natPort })
+      });
+    }
+
+    function onNatPortChange() {
+      const v = Number(document.getElementById('nat-port')?.value || 0);
+      natPort = (Number.isInteger(v) && v >= 1 && v <= 65535) ? v : null;
+      fetch('/donate/set-protocol', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ protocol: currentProto, token: '<%= donateToken %>', natMode, natPort })
       });
     }
 
@@ -249,6 +267,9 @@
     // 页面加载时恢复选择
     if (currentProto !== 'vless') setProtocol(currentProto);
     if (natMode) document.getElementById('nat-toggle')?.classList.add('proto-active');
+    document.getElementById('nat-port-wrap')?.classList.toggle('hidden', !natMode);
+    const natPortInput = document.getElementById('nat-port');
+    if (natPortInput) natPortInput.addEventListener('change', onNatPortChange);
   </script>
 </body>
 </html>
