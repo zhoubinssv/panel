@@ -266,6 +266,12 @@ router.get('/sub6-qr', requireAuth, async (req, res) => {
 router.get('/sub/:token', subLimiter, (req, res) => {
   const token = req.params.token;
   const ua = req.headers['user-agent'] || '';
+
+  // 拒绝空 UA 请求（防止订阅聚合/转换工具拉取）
+  if (!ua.trim()) {
+    return res.status(403).type('text').send('User-Agent is required');
+  }
+
   const forceType = req.query.type;
   const clientType = forceType || detectClient(ua);
   const cacheKey = `${token}:${clientType}`;
@@ -374,6 +380,12 @@ router.get('/sub/:token', subLimiter, (req, res) => {
 router.get('/sub6/:token', subLimiter, (req, res) => {
   const token = req.params.token;
   const ua = req.headers['user-agent'] || '';
+
+  // 拒绝空 UA 请求
+  if (!ua.trim()) {
+    return res.status(403).type('text').send('User-Agent is required');
+  }
+
   const forceType = req.query.type;
   const clientType = forceType || detectClient(ua);
   const cacheKey = `v6:${token}:${clientType}`;
