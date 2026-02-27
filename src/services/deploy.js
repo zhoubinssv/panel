@@ -167,6 +167,10 @@ async function sftpWriteFile(ssh, remotePath, content) {
 
 // 将配置推送到节点并重启 xray（优先通过 Agent，SSH 后备）
 async function pushConfigToNode(node, config) {
+  const db = require('./database');
+  const configJson = typeof config === 'string' ? config : JSON.stringify(config, null, 2);
+  const configHash = crypto.createHash('sha256').update(configJson).digest('hex');
+
   // 优先通过 Agent 推送
   const agentWs = require('./agent-ws'); // 延迟加载避免循环依赖
   if (agentWs.isAgentOnline(node.id)) {
@@ -175,7 +179,11 @@ async function pushConfigToNode(node, config) {
         type: 'update_config',
         config: config,
       });
-      if (result.success) return true;
+      if (result.success) {
+        // 记录期望配置哈希，用于捐赠节点防篡改校验
+        db.setSetting(`donate_cfg_hash_${node.id}`, configHash);
+        return true;
+      }
       console.log(`[推送配置] ${node.name} Agent 推送失败: ${result.error}，回退 SSH`);
     } catch (e) {
       console.log(`[推送配置] ${node.name} Agent 异常: ${e.message}，回退 SSH`);
@@ -195,13 +203,14 @@ async function pushConfigToNode(node, config) {
 
     await ssh.connect(connectOpts);
 
-    const configJson = JSON.stringify(config, null, 2);
     const configPath = node.xray_config_path || '/usr/local/etc/xray/config.json';
 
     await sftpWriteFile(ssh, configPath, configJson);
     const result = await ssh.execCommand('systemctl restart xray && sleep 1 && systemctl is-active --quiet xray && echo OK || echo FAIL');
 
-    return result.stdout.trim() === 'OK';
+    const ok = result.stdout.trim() === 'OK';
+    if (ok) db.setSetting(`donate_cfg_hash_${node.id}`, configHash);
+    return ok;
   } catch (err) {
     console.error(`[推送配置] ${node.name} SSH 失败: ${err.message}`);
     return false;

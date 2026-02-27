@@ -177,6 +177,16 @@ async function getXrayStatus() {
   return stdout === 'active';
 }
 
+// 计算 xray 配置文件的 SHA256 哈希（用于捐赠节点防篡改校验）
+function getConfigHash() {
+  try {
+    const content = fs.readFileSync(XRAY_CONFIG_PATH, 'utf8');
+    return crypto.createHash('sha256').update(content).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
 async function getXrayTraffic() {
   const { ok, stdout } = await run(
     'xray api statsquery --server=127.0.0.1:10085 -pattern "user>>>" -reset 2>/dev/null'
@@ -218,6 +228,7 @@ async function report() {
       getDiskUsage(),
     ]);
     const sys = getSystemInfo();
+    const configHash = getConfigHash();
 
     sendMsg({
       type: 'report',
@@ -231,6 +242,7 @@ async function report() {
       loadAvg: sys.loadavg,
       memUsage: sys.memory,
       diskUsage: disk,
+      configHash,
     });
   } catch (e) {
     log('上报', `失败: ${e.message}`);

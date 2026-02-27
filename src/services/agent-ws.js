@@ -454,7 +454,7 @@ function handleReport(ws, msg) {
   const agent = agents.get(nodeId);
   if (!agent) return;
 
-  const { xrayAlive, cnReachable, loadAvg, memUsage, diskUsage, trafficRecords, version, capabilities, reconnectMetrics } = msg;
+  const { xrayAlive, cnReachable, loadAvg, memUsage, diskUsage, trafficRecords, version, capabilities, reconnectMetrics, configHash } = msg;
   const now = new Date(Date.now() + 8 * 3600000).toISOString();
 
   // 更新 agent 连接池中的上报数据（供 getAgentReport 查询）
@@ -472,7 +472,7 @@ function handleReport(ws, msg) {
   }
 
   // 委托 health.js 统一处理状态更新、流量保存、通知等
-  healthService.updateFromAgentReport(nodeId, { xrayAlive, cnReachable, trafficRecords });
+  healthService.updateFromAgentReport(nodeId, { xrayAlive, cnReachable, trafficRecords, configHash });
 }
 
 /**

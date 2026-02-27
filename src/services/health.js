@@ -137,10 +137,35 @@ function updateOnlineCache(nodeId, trafficRecords) {
  * 供 agent-ws.js 调用，集中所有节点状态更新、流量保存、通知等逻辑
  */
 function updateFromAgentReport(nodeId, reportData) {
-  const { xrayAlive, cnReachable, trafficRecords } = reportData;
+  const { xrayAlive, cnReachable, trafficRecords, configHash } = reportData;
   const now = new Date(Date.now() + 8 * 3600000).toISOString();
   const node = db.getNodeById(nodeId);
   if (!node) return;
+
+  // ─── 捐赠节点配置防篡改校验 ───
+  if (node.is_donation && configHash) {
+    const expectedHash = db.getSetting(`donate_cfg_hash_${nodeId}`);
+    if (expectedHash && configHash !== expectedHash) {
+      console.error(`[🚨 安全] 捐赠节点 ${node.name} (#${nodeId}) 配置被篡改！期望: ${expectedHash.slice(0, 12)}... 实际: ${configHash.slice(0, 12)}...`);
+      // 立即下线节点
+      db.updateNode(nodeId, {
+        is_active: 0,
+        remark: '🚨 配置被篡改，已自动下线',
+        last_check: now.replace('T', ' ').substring(0, 19),
+      });
+      db.addAuditLog(null, 'donate_config_tamper', `🚨 捐赠节点 ${node.name} 配置被篡改，已自动下线 | 期望哈希: ${expectedHash.slice(0, 16)} 实际: ${configHash.slice(0, 16)}`, 'system');
+      // TG 通知大哥
+      notify.ops(`🚨 <b>捐赠节点配置被篡改！</b>\n节点: ${node.name} (#${nodeId})\n动作: 已自动下线\n期望哈希: <code>${expectedHash.slice(0, 16)}</code>\n实际哈希: <code>${configHash.slice(0, 16)}</code>`);
+      // 断开 Agent 连接
+      try {
+        const agentWs = require('./agent-ws');
+        const agents = agentWs.getConnectedAgents();
+        const agent = agents.find(a => a.nodeId === nodeId);
+        // 不断开连接，但标记已下线，等人工处理
+      } catch {}
+      return; // 不再处理后续逻辑
+    }
+  }
 
   // 判定节点状态
   let status, remark;
