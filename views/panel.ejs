@@ -2,7 +2,7 @@
 
   <!-- 导航 -->
   <nav class="glass-solid sticky top-0 z-40 px-6 py-3">
-    <div class="max-w-6xl mx-auto flex items-center justify-between">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center text-sm">🍑</div>
         <span class="text-white font-semibold hidden sm:block">小姨子的诱惑</span>
@@ -16,7 +16,7 @@
   </nav>
 
   <% if (announcement) { %>
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 mt-4">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 mt-4">
     <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl">
       <div class="px-4 py-2 flex items-center gap-2 text-xs">
         <span class="text-rose-400 shrink-0">📢</span>
@@ -28,10 +28,10 @@
   </div>
   <% } %>
 
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6 anim-fade-up">
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 anim-fade-up">
 
     <!-- 流量概览 -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
       <div class="glass rounded-2xl p-4 stat-card" style="--accent-color:#f43f5e">
         <p class="text-faint text-xs mb-1">节点在线用户</p>
         <p class="text-rose-400 text-xl font-bold mono-num" id="online-count">0 人</p>
@@ -57,7 +57,7 @@
     </div>
 
     <!-- 订阅链接 -->
-    <div class="glass rounded-2xl p-5">
+    <div class="glass rounded-2xl p-5 lg:p-6">
       <% const _launchDate = new Date('2026-02-23T00:00:00+08:00'); const _runDays = Math.floor((Date.now() - _launchDate.getTime()) / 86400000); %>
       <% const _resetLabels = { 0: '每7天', 1: '每7天', 2: '每15天', 3: '每月', 4: '永不' }; %>
       <div class="flex items-center justify-between mb-3 flex-wrap gap-1.5">
@@ -69,21 +69,25 @@
           UUID 重置：<span id="uuid-reset-countdown" class="text-rose-300">计算中...</span> <span class="text-gray-600">(每天)</span> · 订阅重置：<span id="sub-reset-countdown" class="text-cyan-300">计算中...</span> <span class="text-gray-600">(<%= _resetLabels[Math.min(user.trust_level || 0, 4)] %>)</span>
         </div>
       </div>
-      <div class="space-y-2">
-        <div>
-          <div class="text-[11px] text-gray-400 mb-1">🌐 IPv4 订阅（VLESS）</div>
-          <div class="flex flex-wrap gap-2 sub-btn-row">
+      <div class="space-y-3">
+        <div class="lg:grid lg:grid-cols-[1fr_auto] lg:items-center lg:gap-3">
+          <div>
+            <div class="text-[11px] text-gray-400 mb-1">🌐 IPv4 订阅（VLESS）</div>
             <input type="text" readonly value="<%= subUrl %>" id="sub-link"
-                   class="flex-1 min-w-0 bg-black/30 text-rose-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
+                   class="w-full min-w-0 bg-black/30 text-rose-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
+          </div>
+          <div class="flex gap-2 mt-2 lg:mt-5 sub-btn-row">
             <button onclick="copySubLink()" class="btn-primary px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
             <button onclick="showSubQr()" class="btn-info px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
           </div>
         </div>
-        <div>
-          <div class="text-[11px] text-gray-400 mb-1">🌐 IPv6 订阅（Shadowsocks）</div>
-          <div class="flex flex-wrap gap-2 sub-btn-row">
+        <div class="lg:grid lg:grid-cols-[1fr_auto] lg:items-center lg:gap-3">
+          <div>
+            <div class="text-[11px] text-gray-400 mb-1">🌐 IPv6 订阅（Shadowsocks）</div>
             <input type="text" readonly value="<%= subUrl6 %>" id="sub6-link"
-                   class="flex-1 min-w-0 bg-black/30 text-cyan-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
+                   class="w-full min-w-0 bg-black/30 text-cyan-300 text-xs px-4 py-2.5 rounded-xl border border-white/5 font-mono">
+          </div>
+          <div class="flex gap-2 mt-2 lg:mt-5 sub-btn-row">
             <button onclick="copySub6Link()" class="btn-primary px-5 py-2.5 rounded-xl text-sm transition font-medium">复制</button>
             <button onclick="showSub6Qr()" class="btn-info px-5 py-2.5 rounded-xl text-sm transition font-medium">二维码</button>
           </div>
@@ -141,14 +145,14 @@
           <span class="text-gray-600 text-xs">(<%= _groups[gName].length %>)</span>
         </h3>
         <% } %>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 node-card-grid mb-3">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 node-card-grid mb-3">
         <% if (userNodes.length === 0 && gName === _groupNames[0]) { %>
           <div class="glass rounded-2xl p-8 col-span-full text-center">
             <p class="text-gray-500">暂无可用节点</p>
           </div>
         <% } else { _groups[gName].forEach(function(n) { %>
-          <div class="glass rounded-2xl p-3.5 node-card" data-protocol="<%= (n.protocol || '').toLowerCase() %>" data-search="<%= (n.name || '') + ' ' + (n.region || '') + ' ' + (n.protocol || '') + ' ' + (n.tags || '') %>">
-            <div class="flex items-center justify-between mb-2">
+          <div class="glass rounded-2xl p-3.5 lg:p-3 node-card" data-protocol="<%= (n.protocol || '').toLowerCase() %>" data-search="<%= (n.name || '') + ' ' + (n.region || '') + ' ' + (n.protocol || '') + ' ' + (n.tags || '') %>">
+            <div class="flex items-center justify-between mb-2 lg:mb-1.5">
               <div class="flex items-center gap-2 min-w-0">
                 <% if (n.remark && n.remark.includes('被墙')) { %>
                   <span class="shrink-0 inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" title="被墙"></span>
@@ -162,18 +166,20 @@
                 <h3 class="text-white font-semibold text-sm truncate"><%= n.name %></h3>
               </div>
               <div class="flex items-center gap-1.5 shrink-0">
+                <% if (n.protocol === 'ss') { %><span class="text-[9px] bg-cyan-800/60 text-cyan-300 px-1.5 py-0.5 rounded">SS</span><% } %>
                 <% if (nodeAiTags[n.id] && nodeAiTags[n.id].includes('ai_swap')) { %>
                   <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 whitespace-nowrap">🔄 AI换IP</span>
                 <% } %>
               </div>
             </div>
-            <% if (n.region) { %><p class="text-dim text-xs mb-2"><%= n.region %><% if (n.tags) { %> · <span class="text-faint text-[11px]"><%= n.tags %></span><% } %></p><% } %>
-            <div class="bg-black/30 rounded-lg p-2 mb-2 overflow-hidden">
+            <% if (n.region) { %><p class="text-dim text-xs mb-1.5 lg:mb-1"><%= n.region %><% if (n.tags) { %> · <span class="text-faint text-[11px]"><%= n.tags %></span><% } %></p><% } %>
+            <div class="bg-black/30 rounded-lg p-2 mb-2 overflow-hidden node-link-box desktop-collapsed" id="link-box-<%= n.id %>">
               <code class="text-rose-300 text-[11px] break-all select-all font-mono vless-link leading-relaxed block max-h-10 overflow-y-auto" id="link-<%= n.id %>" data-collapsed="1"><%= n.link %></code>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-              <button onclick="copyLink(<%= n.id %>)" class="btn-primary focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none text-xs py-2 rounded-lg transition font-medium">复制链接</button>
-              <button onclick="toggleNodeLink(<%= n.id %>, this)" class="btn-secondary text-xs py-2 rounded-lg transition font-medium">展开链接</button>
+            <div class="flex gap-2">
+              <button onclick="copyLink(<%= n.id %>)" class="flex-1 btn-primary focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none text-xs py-2 lg:py-1.5 rounded-lg transition font-medium">复制链接</button>
+              <button onclick="toggleDesktopLink(<%= n.id %>, this)" class="hidden lg:inline-flex flex-1 btn-secondary text-xs py-1.5 rounded-lg transition font-medium items-center justify-center">展开</button>
+              <button onclick="toggleNodeLink(<%= n.id %>, this)" class="lg:hidden flex-1 btn-secondary text-xs py-2 rounded-lg transition font-medium">展开链接</button>
             </div>
           </div>
         <% }); } %>
@@ -203,6 +209,23 @@
         el.style.maxHeight = '2.5rem';
         el.dataset.collapsed = '1';
         btn.textContent = '展开链接';
+      }
+    }
+    function toggleDesktopLink(id, btn) {
+      const box = document.getElementById('link-box-' + id);
+      const el = document.getElementById('link-' + id);
+      if (!box || !el) return;
+      const isHidden = box.classList.contains('desktop-collapsed');
+      if (isHidden) {
+        box.classList.remove('desktop-collapsed');
+        el.style.maxHeight = '8rem';
+        el.dataset.collapsed = '0';
+        btn.textContent = '收起';
+      } else {
+        box.classList.add('desktop-collapsed');
+        el.style.maxHeight = '2.5rem';
+        el.dataset.collapsed = '1';
+        btn.textContent = '展开';
       }
     }
     function showSubQr() {

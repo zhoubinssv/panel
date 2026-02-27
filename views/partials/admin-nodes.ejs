@@ -158,17 +158,19 @@
             </td>
             <td class="py-3 px-4 text-xs text-faint hidden md:table-cell mono-num"><%= n.last_check || '-' %></td>
             <td class="py-3 px-4">
-              <details class="relative inline-block action-menu">
-                <summary class="list-none cursor-pointer text-xs text-gray-200 btn-secondary inline-flex items-center px-2 py-1 rounded-lg">更多 ▾</summary>
-                <div class="absolute right-0 mt-1.5 w-28 rounded-xl border border-white/10 bg-[#181324]/95 backdrop-blur-md shadow-xl p-1.5 z-10">
-                  <button onclick="toggleEdit(<%= n.id %>)" class="w-full text-left text-rose-300 hover:bg-white/5 text-xs px-2 py-1.5 rounded">编辑</button>
-                  <button onclick="restartXray(<%= n.id %>, this)" class="w-full text-left text-amber-300 hover:bg-white/5 text-xs px-2 py-1.5 rounded">重启</button>
-                  <form method="POST" action="/admin/api/nodes/<%= n.id %>/delete" class="block">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button type="button" class="w-full text-left text-red-300 hover:bg-red-500/10 text-xs px-2 py-1.5 rounded" onclick="_confirm('确定删除？将停止远端 Xray 和 Agent 服务').then(ok=>{if(ok)this.closest('form').submit()})">删除</button>
-                  </form>
-                </div>
-              </details>
+              <div class="inline-flex items-center gap-1.5">
+                <button onclick="toggleEdit(<%= n.id %>)" class="text-rose-300 hover:bg-white/5 text-xs px-2 py-1.5 rounded">编辑</button>
+                <button onclick="restartXray(<%= n.id %>, this)" class="text-amber-300 hover:bg-white/5 text-xs px-2 py-1.5 rounded">重启</button>
+                <details class="relative inline-block action-menu">
+                  <summary class="list-none cursor-pointer text-xs text-gray-200 btn-secondary inline-flex items-center px-2 py-1 rounded-lg">更多 ▾</summary>
+                  <div class="absolute right-0 mt-1.5 w-24 rounded-xl border border-white/10 bg-[#181324]/95 backdrop-blur-md shadow-xl p-1.5 z-10">
+                    <form method="POST" action="/admin/api/nodes/<%= n.id %>/delete" class="block">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="button" class="w-full text-left text-red-300 hover:bg-red-500/10 text-xs px-2 py-1.5 rounded" onclick="_confirm('确定删除？将停止远端 Xray 和 Agent 服务').then(ok=>{if(ok)this.closest('form').submit()})">删除</button>
+                    </form>
+                  </div>
+                </details>
+              </div>
             </td>
           </tr>
           <% }); %>
