@@ -21,7 +21,6 @@ const panelRoutes = require('./routes/panel');
 const adminRoutes = require('./routes/admin');
 const adminApiRoutes = require('./routes/adminApi');
 const rotateService = require('./services/rotate');
-const trafficService = require('./services/traffic');
 const dbModule = require('./services/database');
 const { getDb } = dbModule;
 const deployService = require('./services/deploy');

@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../services/database');
-const { formatBytes } = require('../services/traffic');
+const { formatBytes } = require('../utils/vless');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const agentWs = require('../services/agent-ws');
 

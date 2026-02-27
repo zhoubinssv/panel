@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../services/database');
 const { buildVlessLink, buildSsLink, generateV2raySubForUser, generateClashSubForUser, generateSingboxSubForUser, generateV2raySsSub, generateClashSsSub, generateSingboxSsSub, detectClient } = require('../utils/vless');
-const { formatBytes } = require('../services/traffic');
+const { formatBytes } = require('../utils/vless');
 const { requireAuth } = require('../middleware/auth');
 const { subLimiter } = require('../middleware/rateLimit');
 const QRCode = require('qrcode');

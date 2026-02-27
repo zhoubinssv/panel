@@ -10,6 +10,28 @@ const router = express.Router();
 // AWS 实例缓存
 let _awsInstancesCache = { data: null, ts: 0 };
 
+// 一键部署任务状态（进程内）
+const _launchTasks = new Map();
+
+function createLaunchTask(meta = {}) {
+  const id = `launch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  _launchTasks.set(id, {
+    id,
+    status: 'queued', // queued | running | done | failed
+    message: '排队中',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    ...meta,
+  });
+  return id;
+}
+
+function updateLaunchTask(id, patch = {}) {
+  const cur = _launchTasks.get(id);
+  if (!cur) return;
+  _launchTasks.set(id, { ...cur, ...patch, updatedAt: Date.now() });
+}
+
 function parseSocks5Url(socks5Url) {
   if (!socks5Url) return { host: null, port: 1080, user: null, pass: null };
   const u = new URL(socks5Url);
@@ -226,62 +248,84 @@ router.post('/aws/swap-ip', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.get('/aws/launch-task/:taskId', (req, res) => {
+  const task = _launchTasks.get(req.params.taskId);
+  if (!task) return res.status(404).json({ error: '任务不存在' });
+  res.json({ ok: true, task });
+});
+
 router.post('/aws/launch-and-deploy', async (req, res) => {
   const { accountId, region, type, spec, sshPassword } = req.body;
   if (!accountId || !region || !type) return res.status(400).json({ error: '参数不完整' });
   if (!sshPassword) return res.status(400).json({ error: '请填写 SSH 密码（用于部署）' });
 
-  res.json({ ok: true, message: '创建中...' });
+  const parsedAccountId = parseInt(accountId);
+  const taskId = createLaunchTask({
+    userId: req.user.id,
+    requestIp: req.ip,
+    accountId: parsedAccountId,
+    region,
+    type,
+    spec,
+  });
 
-  try {
-    db.addAuditLog(req.user.id, 'aws_launch', `开始创建: ${type} ${spec} in ${region} (账号#${accountId})`, req.ip);
+  res.json({ ok: true, taskId, message: '创建任务成功，请轮询任务状态' });
 
-    let instanceId;
-    if (type === 'lightsail') {
-      const name = `panel-${Date.now()}`;
-      await aws.launchLightsailInstance(region, spec, name, parseInt(accountId));
-      instanceId = name;
-    } else {
-      const result = await aws.launchEC2Instance(region, spec, parseInt(accountId));
-      instanceId = result.instanceId;
+  (async () => {
+    try {
+      updateLaunchTask(taskId, { status: 'running', message: '开始创建实例' });
+      db.addAuditLog(req.user.id, 'aws_launch', `开始创建: ${type} ${spec} in ${region} (账号#${parsedAccountId})`, req.ip);
+
+      let instanceId;
+      if (type === 'lightsail') {
+        const name = `panel-${Date.now()}`;
+        await aws.launchLightsailInstance(region, spec, name, parsedAccountId);
+        instanceId = name;
+      } else {
+        const result = await aws.launchEC2Instance(region, spec, parsedAccountId);
+        instanceId = result.instanceId;
+      }
+      updateLaunchTask(taskId, { message: `实例已创建: ${instanceId}`, instanceId });
+
+      const inst = await aws.waitForInstanceRunning(instanceId, type, region, parsedAccountId);
+      const publicIp = inst.publicIp || inst.publicIpAddress;
+      if (!publicIp) throw new Error('实例无公网 IP');
+      updateLaunchTask(taskId, { message: `实例运行中: ${publicIp}`, publicIp });
+
+      const { checkPort } = require('../../services/health');
+      let sshReady = false;
+      for (let i = 0; i < 24; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        sshReady = await checkPort(publicIp, 22, 5000);
+        if (sshReady) break;
+      }
+      if (!sshReady) throw new Error('SSH 120秒内未就绪');
+      updateLaunchTask(taskId, { message: 'SSH 已就绪，开始部署节点' });
+
+      await deployService.deployNode({
+        host: publicIp, ssh_password: sshPassword, ssh_port: 22,
+        ssh_user: 'ubuntu',
+        triggered_by: req.user.id
+      }, db);
+
+      const allNodes = db.getAllNodes();
+      const newNode = allNodes.find(n => n.host === publicIp);
+      if (newNode) {
+        db.updateNode(newNode.id, { aws_instance_id: instanceId, aws_type: type, aws_region: region, aws_account_id: parsedAccountId });
+        try { await aws.tagInstance(instanceId, { Name: newNode.name }, type, region, parsedAccountId); }
+        catch (e) { console.log(`[一键部署] 打标签失败: ${e.message}`); }
+      }
+
+      db.addAuditLog(req.user.id, 'aws_launch_done', `一键部署完成: ${instanceId} IP: ${publicIp}`, req.ip);
+      updateLaunchTask(taskId, { status: 'done', message: '一键部署完成' });
+      try { notify.ops(`🚀 一键部署完成: ${instanceId} (${publicIp})`).catch(() => {}); } catch {}
+    } catch (e) {
+      console.error(`[一键部署] 失败: ${e.message}`);
+      db.addAuditLog(req.user.id, 'aws_launch_fail', `一键部署失败: ${e.message}`, req.ip);
+      updateLaunchTask(taskId, { status: 'failed', message: e.message || '未知错误' });
+      try { notify.ops(`❌ 一键部署失败: ${e.message}`).catch(() => {}); } catch {}
     }
-    console.log(`[一键部署] 实例已创建: ${instanceId}`);
-
-    const inst = await aws.waitForInstanceRunning(instanceId, type, region, parseInt(accountId));
-    const publicIp = inst.publicIp || inst.publicIpAddress;
-    console.log(`[一键部署] 实例就绪: ${instanceId} IP: ${publicIp}`);
-    if (!publicIp) throw new Error('实例无公网 IP');
-
-    const { checkPort } = require('../../services/health');
-    let sshReady = false;
-    for (let i = 0; i < 24; i++) {
-      await new Promise(r => setTimeout(r, 5000));
-      sshReady = await checkPort(publicIp, 22, 5000);
-      if (sshReady) break;
-    }
-    if (!sshReady) throw new Error('SSH 120秒内未就绪');
-
-    await deployService.deployNode({
-      host: publicIp, ssh_password: sshPassword, ssh_port: 22,
-      ssh_user: type === 'lightsail' ? 'ubuntu' : 'ubuntu',
-      triggered_by: req.user.id
-    }, db);
-
-    const allNodes = db.getAllNodes();
-    const newNode = allNodes.find(n => n.host === publicIp);
-    if (newNode) {
-      db.updateNode(newNode.id, { aws_instance_id: instanceId, aws_type: type, aws_region: region, aws_account_id: parseInt(accountId) });
-      try { await aws.tagInstance(instanceId, { Name: newNode.name }, type, region, parseInt(accountId)); }
-      catch (e) { console.log(`[一键部署] 打标签失败: ${e.message}`); }
-    }
-
-    db.addAuditLog(req.user.id, 'aws_launch_done', `一键部署完成: ${instanceId} IP: ${publicIp}`, req.ip);
-    try { notify.ops(`🚀 一键部署完成: ${instanceId} (${publicIp})`).catch(() => {}); } catch {}
-  } catch (e) {
-    console.error(`[一键部署] 失败: ${e.message}`);
-    db.addAuditLog(req.user.id, 'aws_launch_fail', `一键部署失败: ${e.message}`, req.ip);
-    try { notify.ops(`❌ 一键部署失败: ${e.message}`).catch(() => {}); } catch {}
-  }
+  })();
 });
 
 module.exports = router;
