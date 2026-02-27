@@ -169,9 +169,12 @@
             </div>
             <% if (n.region) { %><p class="text-dim text-xs mb-2"><%= n.region %><% if (n.tags) { %> · <span class="text-faint text-[11px]"><%= n.tags %></span><% } %></p><% } %>
             <div class="bg-black/30 rounded-lg p-2 mb-2 overflow-hidden">
-              <code class="text-rose-300 text-[11px] break-all select-all font-mono vless-link leading-relaxed block max-h-14 overflow-y-auto" id="link-<%= n.id %>"><%= n.link %></code>
+              <code class="text-rose-300 text-[11px] break-all select-all font-mono vless-link leading-relaxed block max-h-10 overflow-y-auto" id="link-<%= n.id %>" data-collapsed="1"><%= n.link %></code>
             </div>
-            <button onclick="copyLink(<%= n.id %>)" class="w-full btn-primary focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none text-xs py-2 rounded-lg transition font-medium">复制链接</button>
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="copyLink(<%= n.id %>)" class="btn-primary focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none text-xs py-2 rounded-lg transition font-medium">复制链接</button>
+              <button onclick="toggleNodeLink(<%= n.id %>, this)" class="btn-secondary text-xs py-2 rounded-lg transition font-medium">展开链接</button>
+            </div>
           </div>
         <% }); } %>
       </div>
@@ -187,6 +190,20 @@
     }
     function copySubLink() {
       navigator.clipboard.writeText(document.getElementById('sub-link').value).then(() => toast('✅ 订阅链接已复制'));
+    }
+    function toggleNodeLink(id, btn) {
+      const el = document.getElementById('link-' + id);
+      if (!el) return;
+      const collapsed = el.dataset.collapsed === '1';
+      if (collapsed) {
+        el.style.maxHeight = '9rem';
+        el.dataset.collapsed = '0';
+        btn.textContent = '收起链接';
+      } else {
+        el.style.maxHeight = '2.5rem';
+        el.dataset.collapsed = '1';
+        btn.textContent = '展开链接';
+      }
     }
     function showSubQr() {
       const link = document.getElementById('sub-link').value;

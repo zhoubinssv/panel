@@ -43,19 +43,19 @@
     </div>
     <div class="relative">
       <div class="flex gap-1 glass-solid rounded-2xl p-1.5 overflow-x-auto scrollbar-hide tab-bar" style="-webkit-overflow-scrolling:touch" role="tablist" aria-label="后台功能标签">
-        <!-- 核心 -->
+        <span class="group-tag">核心</span>
         <button onclick="switchTab('nodes')" class="tab-btn active text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="nodes" role="tab" aria-selected="true" aria-controls="tab-panel-nodes" id="tab-btn-nodes">🌐 节点</button>
         <button onclick="switchTab('users')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="users" role="tab" aria-selected="false" aria-controls="tab-panel-users" id="tab-btn-users">👥 用户</button>
         <button onclick="switchTab('traffic')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="traffic" role="tab" aria-selected="false" aria-controls="tab-panel-traffic" id="tab-btn-traffic">📊 流量</button>
         <button onclick="switchTab('whitelist')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="whitelist" role="tab" aria-selected="false" aria-controls="tab-panel-whitelist" id="tab-btn-whitelist">🔒 白名单</button>
-        <span class="hidden sm:block w-px bg-white/10 my-1.5 mx-1 flex-shrink-0"></span>
-        <!-- 监控 -->
+        <span class="hidden sm:block w-px bg-white/15 my-1.5 mx-1 flex-shrink-0"></span>
+        <span class="group-tag">监控</span>
         <button onclick="switchTab('logs')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="logs" role="tab" aria-selected="false" aria-controls="tab-panel-logs" id="tab-btn-logs">📋 日志</button>
         <button onclick="switchTab('abuse')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="abuse" role="tab" aria-selected="false" aria-controls="tab-panel-abuse" id="tab-btn-abuse">📈 订阅</button>
         <button onclick="switchTab('ops')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="ops" role="tab" aria-selected="false" aria-controls="tab-panel-ops" id="tab-btn-ops">🧠 运维</button>
         <button onclick="switchTab('diary')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="diary" role="tab" aria-selected="false" aria-controls="tab-panel-diary" id="tab-btn-diary">📔 日记</button>
-        <span class="hidden sm:block w-px bg-white/10 my-1.5 mx-1 flex-shrink-0"></span>
-        <!-- 配置 -->
+        <span class="hidden sm:block w-px bg-white/15 my-1.5 mx-1 flex-shrink-0"></span>
+        <span class="group-tag">配置</span>
         <button onclick="switchTab('notify')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="notify" role="tab" aria-selected="false" aria-controls="tab-panel-notify" id="tab-btn-notify">🔔 通知</button>
         <button onclick="switchTab('aws')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="aws" role="tab" aria-selected="false" aria-controls="tab-panel-aws" id="tab-btn-aws">☁️ AWS</button>
         <button onclick="switchTab('settings')" class="tab-btn text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-panel-settings" id="tab-btn-settings">⚙️ 设置</button>
@@ -81,7 +81,8 @@
 
   <style nonce="<%= nonce %>">
     .tab-btn{color:#9ca3af}.tab-btn:hover{color:#fff;background:rgba(255,255,255,0.05)}
-    .tab-btn.active{color:#fff;background:rgba(244,63,94,0.2);font-weight:500}
+    .tab-btn.active{color:#fff;background:rgba(244,63,94,0.22);font-weight:600}
+    .group-tag{display:inline-flex;align-items:center;padding:0 8px;border-radius:999px;font-size:11px;color:#94a3b8;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);white-space:nowrap}
     .tab-panel{display:none}.tab-panel.active{display:block}
   </style>
   <script src="/js/chart.umd.min.js"></script>

@@ -77,6 +77,7 @@ function nextUuidResetAtMs(now = new Date()) {
 function nextTokenResetAtMs(user, now = new Date()) {
   // 根据用户等级计算下次订阅重置时间
   const level = user.trust_level || 0;
+  const isDonor = !!(user.is_donor || user.isDonor || user.donor);
 
   // Lv4 不重置
   if (level >= 4) return -1;
