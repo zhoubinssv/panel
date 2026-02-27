@@ -8,6 +8,8 @@ const _trafficNotifiedCache = new Set();
 const _nodeFailCount = new Map();
 // Xray 自动拉起冷却（避免频繁重启）：nodeId -> lastRestartMs
 const _xrayRestartCooldown = new Map();
+// 捐赠节点 tag 前缀缓存：nodeId -> Map(prefix8 -> userId)
+const _donationTagUserCache = new Map();
 
 function tryAutoRestartXray(nodeId, nodeName, reason = '') {
   const nowMs = Date.now();
@@ -49,30 +51,40 @@ function checkPort(host, port, timeout = 5000) {
 const _onlineCache = { full: null, summary: null, ts: 0 };
 function getOnlineCache() { return _onlineCache; }
 
+function buildDonationTagCache(nodeId) {
+  const map = new Map();
+  try {
+    const rows = db.getDb().prepare('SELECT user_id, uuid FROM user_node_uuid WHERE node_id = ?').all(nodeId);
+    for (const row of rows) map.set(row.uuid.slice(0, 8), row.user_id);
+  } catch {}
+  _donationTagUserCache.set(nodeId, map);
+  return map;
+}
+
+function resolveDonationTagUserId(nodeId, tag) {
+  if (!tag) return null;
+  const prefix = String(tag).slice(0, 8);
+  let nodeCache = _donationTagUserCache.get(nodeId);
+  if (!nodeCache) nodeCache = buildDonationTagCache(nodeId);
+
+  const hit = nodeCache.get(prefix);
+  if (hit) return hit;
+
+  // 缓存未命中时兜底刷新一次，避免新 UUID 还没进缓存
+  nodeCache = buildDonationTagCache(nodeId);
+  return nodeCache.get(prefix) || null;
+}
+
 // 保存流量记录到数据库
 function saveTrafficRecords(nodeId, records) {
   if (!records || records.length === 0) return 0;
   const userTraffic = {};
 
-  // 捐赠节点脱敏 tag → userId 映射缓存
-  let _tagCache = null;
-  function resolveTag(tag, nodeId) {
-    if (!_tagCache) {
-      // 加载该节点所有 uuid 前缀映射
-      _tagCache = {};
-      try {
-        const rows = db.getDb().prepare('SELECT user_id, uuid FROM user_node_uuid WHERE node_id = ?').all(nodeId);
-        for (const row of rows) _tagCache[row.uuid.slice(0, 8)] = row.user_id;
-      } catch {}
-    }
-    return _tagCache[tag] || null;
-  }
-
   for (const r of records) {
     let userId = r.userId;
     // 捐赠节点脱敏格式：通过 tag 反查 userId
     if (!userId && r.tag) {
-      userId = resolveTag(r.tag, nodeId);
+      userId = resolveDonationTagUserId(nodeId, r.tag);
       if (!userId) continue; // 无法反查，跳过
     }
     if (!userId) continue;
@@ -133,13 +145,10 @@ function updateOnlineCache(nodeId, trafficRecords) {
 
   const nodeUserIds = new Set();
   for (const r of trafficRecords) {
-    // 捐赠节点可能只有 tag 没有 userId，通过 uuid 反查
+    // 捐赠节点可能只有 tag 没有 userId，复用共享缓存反查
     let uid = r.userId;
     if (!uid && r.tag) {
-      try {
-        const row = db.getDb().prepare('SELECT user_id FROM user_node_uuid WHERE node_id = ? AND uuid LIKE ?').get(nodeId, r.tag + '%');
-        if (row) uid = row.user_id;
-      } catch {}
+      uid = resolveDonationTagUserId(nodeId, r.tag);
     }
     if (uid) nodeUserIds.add(uid);
   }
