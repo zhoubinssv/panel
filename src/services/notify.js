@@ -45,9 +45,18 @@ const notify = {
     const gb = (bytes / 1073741824).toFixed(2);
     send(`📊 <b>流量超标</b>\n用户: ${username}\n今日已用: ${gb} GB`).catch(() => {});
   },
-  userRegister(username) {
+  userRegister(username, profile) {
     if (db.getSetting('tg_on_register') !== 'true') return;
-    send(`👤 <b>新用户注册</b>\n用户: ${username}\n时间: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`).catch(() => {});
+    const total = db.getUserCount();
+    const lvNames = { 0: '新手', 1: '基础', 2: '活跃', 3: '资深', 4: '领袖' };
+    const lv = profile?.trust_level ?? 0;
+    let msg = `👤 <b>新用户注册</b>\n`;
+    msg += `用户名: ${username}\n`;
+    if (profile?.name && profile.name !== username) msg += `昵称: ${profile.name}\n`;
+    msg += `等级: Lv${lv} ${lvNames[lv] || ''}\n`;
+    msg += `总用户: ${total}\n`;
+    msg += `时间: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
+    send(msg).catch(() => {});
   },
   deploy(nodeName, success, detail) {
     if (db.getSetting('tg_on_deploy') !== 'true') return;

@@ -41,7 +41,7 @@ function findOrCreateUser(profile) {
 
   _addAuditLog(null, 'user_register', `新用户注册: ${profile.username}${isAdmin ? ' (管理员)' : ''}`, 'system');
 
-  try { const { notify } = require('../notify'); notify.userRegister(profile.username); } catch {}
+  try { const { notify } = require('../notify'); notify.userRegister(profile.username, profile); } catch {}
 
   if (newUser.is_admin || newUser.trust_level >= 1) {
     _ensureUserHasAllNodeUuids(newUser.id);
