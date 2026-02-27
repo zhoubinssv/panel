@@ -330,9 +330,9 @@ function handleAuth(ws, msg) {
               const port = 10000 + Math.floor(Math.random() * 50000);
               const agentToken = uuidv4();
               const nodeResult = d.prepare(`
-                INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, is_active, agent_token, group_name, remark, is_donation)
-                VALUES (?, ?, ?, ?, 'vless', 4, 1, ?, '捐赠节点', '', 1)
-              `).run(nodeName, vlessHost, port, uuidv4(), agentToken);
+                INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, is_active, agent_token, group_name, remark, is_donation, ssh_host)
+                VALUES (?, ?, ?, ?, 'vless', 4, 1, ?, '捐赠节点', '', 1, ?)
+              `).run(nodeName, vlessHost, port, uuidv4(), agentToken, ip);
               const nodeId = Number(nodeResult.lastInsertRowid);
               nodeIds.push(nodeId);
 
@@ -360,9 +360,9 @@ function handleAuth(ws, msg) {
                   : (region ? `${region}-${donorName}` : donorName);
                 const ssPort = 10000 + Math.floor(Math.random() * 50000);
                 const ssResult = d.prepare(`
-                  INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, ss_method, is_active, agent_token, group_name, remark, is_donation)
-                  VALUES (?, ?, ?, ?, 'ss', 6, 'aes-256-gcm', 1, ?, '捐赠节点', '', 1)
-                `).run(ssName, ipv6Addr, ssPort, uuidv4(), uuidv4());
+                  INSERT INTO nodes (name, host, port, uuid, protocol, ip_version, ss_method, is_active, agent_token, group_name, remark, is_donation, ssh_host)
+                  VALUES (?, ?, ?, ?, 'ss', 6, 'aes-256-gcm', 1, ?, '捐赠节点', '', 1, ?)
+                `).run(ssName, ipv6Addr, ssPort, uuidv4(), uuidv4(), ip);
                 const ssNodeId = Number(ssResult.lastInsertRowid);
                 nodeIds.push(ssNodeId);
                 uuidRepo.ensureAllUsersHaveUuid(ssNodeId);
