@@ -8,97 +8,82 @@ const { isValidHost } = require('../../utils/hostValidator');
 
 const router = express.Router();
 
-// 统一部署入口
-router.post('/nodes/deploy-smart', (req, res) => {
-  const { host, ssh_port, ssh_user, ssh_password, ss_method, enable_vless, enable_ss,
-          socks5_host, socks5_port, socks5_user, socks5_pass } = req.body;
-  if (!host || !ssh_password) return res.redirect('/admin#nodes');
+function startDeploy(req, mode) {
+  const { host, ssh_port, ssh_user, ssh_password, ss_method, socks5_host, socks5_port, socks5_user, socks5_pass } = req.body;
+  if (!host || !ssh_password) return false;
+  if (!isValidHost(host)) return 'invalid_host';
 
-  const vless = enable_vless === 'on';
-  const ss = enable_ss === 'on';
-  if (!vless && !ss) return res.redirect('/admin#nodes');
+  const trimHost = host.trim();
+  if (mode !== 'dual') {
+    const existing = db.getAllNodes().find(n => n.ssh_host === trimHost || n.host === trimHost);
+    if (existing) {
+      db.addAuditLog(req.user.id, 'node_deploy_dup', `重复 IP: ${trimHost} (已有节点: ${existing.name})`, req.ip);
+      return 'dup';
+    }
+  }
 
   const sshInfo = {
-    host, ssh_port: parseInt(ssh_port) || 22, ssh_user: ssh_user || 'root', ssh_password,
+    host: trimHost,
+    ssh_port: parseInt(ssh_port) || 22,
+    ssh_user: ssh_user || 'root',
+    ssh_password,
     ss_method: ss_method || 'aes-256-gcm',
-    socks5_host: socks5_host || null, socks5_port: parseInt(socks5_port) || 1080,
-    socks5_user: socks5_user || null, socks5_pass: socks5_pass || null,
+    socks5_host: socks5_host || null,
+    socks5_port: parseInt(socks5_port) || 1080,
+    socks5_user: socks5_user || null,
+    socks5_pass: socks5_pass || null,
     triggered_by: req.user.id
   };
 
-  if (vless && ss) {
-    db.addAuditLog(req.user.id, 'node_deploy_dual_start', `开始双协议部署: ${host}`, req.ip);
+  if (mode === 'dual') {
+    db.addAuditLog(req.user.id, 'node_deploy_dual_start', `开始双协议部署: ${trimHost}`, req.ip);
     deployService.deployDualNode(sshInfo, db).catch(err => console.error('[双协议部署异常]', err));
-  } else if (vless) {
-    db.addAuditLog(req.user.id, 'node_deploy_start', `开始VLESS部署: ${host}`, req.ip);
+  } else if (mode === 'vless') {
+    db.addAuditLog(req.user.id, 'node_deploy_start', `开始VLESS部署: ${trimHost}${socks5_host ? ' (socks5→' + socks5_host + ')' : ''}`, req.ip);
     deployService.deployNode(sshInfo, db).catch(err => console.error('[部署异常]', err));
   } else {
-    db.addAuditLog(req.user.id, 'node_deploy_ss_start', `开始SS部署: ${host}`, req.ip);
+    db.addAuditLog(req.user.id, 'node_deploy_ss_start', `开始SS部署: ${trimHost}`, req.ip);
     deployService.deploySsNode(sshInfo, db).catch(err => console.error('[SS部署异常]', err));
   }
 
-  res.redirect('/admin?msg=deploying#nodes');
+  return true;
+}
+
+// 统一部署入口
+router.post('/nodes/deploy-smart', (req, res) => {
+  const vless = req.body.enable_vless === 'on';
+  const ss = req.body.enable_ss === 'on';
+  if (!vless && !ss) return res.redirect('/admin#nodes');
+
+  const mode = vless && ss ? 'dual' : (vless ? 'vless' : 'ss');
+  const result = startDeploy(req, mode);
+  if (result === 'invalid_host') return res.redirect('/admin?msg=invalid_host#nodes');
+  if (result === 'dup') return res.redirect('/admin?msg=dup#nodes');
+  if (!result) return res.redirect('/admin#nodes');
+  return res.redirect('/admin?msg=deploying#nodes');
 });
 
 router.post('/nodes/deploy-dual', (req, res) => {
-  const { host, ssh_port, ssh_user, ssh_password, ss_method, socks5_host, socks5_port, socks5_user, socks5_pass } = req.body;
-  if (!host || !ssh_password) return res.redirect('/admin#nodes');
-
-  db.addAuditLog(req.user.id, 'node_deploy_dual_start', `开始双协议部署: ${host}`, req.ip);
-
-  deployService.deployDualNode({
-    host, ssh_port: parseInt(ssh_port) || 22, ssh_user: ssh_user || 'root', ssh_password,
-    ss_method: ss_method || 'aes-256-gcm',
-    socks5_host: socks5_host || null, socks5_port: parseInt(socks5_port) || 1080,
-    socks5_user: socks5_user || null, socks5_pass: socks5_pass || null,
-    triggered_by: req.user.id
-  }, db).catch(err => console.error('[双协议部署异常]', err));
-
-  res.redirect('/admin?msg=deploying#nodes');
+  const result = startDeploy(req, 'dual');
+  if (result === 'invalid_host') return res.redirect('/admin?msg=invalid_host#nodes');
+  if (!result) return res.redirect('/admin#nodes');
+  return res.redirect('/admin?msg=deploying#nodes');
 });
 
 router.post('/nodes/deploy-ss', (req, res) => {
-  const { host, ssh_port, ssh_user, ssh_password, ss_method } = req.body;
-  if (!host || !ssh_password) return res.redirect('/admin#nodes');
-
-  const existing = db.getAllNodes().find(n => n.ssh_host === host.trim() || n.host === host.trim());
-  if (existing) {
-    db.addAuditLog(req.user.id, 'node_deploy_dup', `重复 IP: ${host} (已有节点: ${existing.name})`, req.ip);
-    return res.redirect('/admin?msg=dup#nodes');
-  }
-
-  db.addAuditLog(req.user.id, 'node_deploy_ss_start', `开始SS部署: ${host}`, req.ip);
-
-  deployService.deploySsNode({
-    host, ssh_port: parseInt(ssh_port) || 22, ssh_user: ssh_user || 'root', ssh_password,
-    ss_method: ss_method || 'aes-256-gcm',
-    triggered_by: req.user.id
-  }, db).catch(err => console.error('[SS部署异常]', err));
-
-  res.redirect('/admin?msg=deploying#nodes');
+  const result = startDeploy(req, 'ss');
+  if (result === 'invalid_host') return res.redirect('/admin?msg=invalid_host#nodes');
+  if (result === 'dup') return res.redirect('/admin?msg=dup#nodes');
+  if (!result) return res.redirect('/admin#nodes');
+  return res.redirect('/admin?msg=deploying#nodes');
 });
 
 router.post('/nodes/deploy', (req, res) => {
-  const { host, ssh_port, ssh_user, ssh_password, socks5_host, socks5_port, socks5_user, socks5_pass } = req.body;
-  if (!host || !ssh_password) return res.redirect('/admin#nodes');
-  if (!isValidHost(host)) return res.redirect('/admin?msg=invalid_host#nodes');
-
-  const existing = db.getAllNodes().find(n => n.host === host.trim());
-  if (existing) {
-    db.addAuditLog(req.user.id, 'node_deploy_dup', `重复 IP: ${host} (已有节点: ${existing.name})`, req.ip);
-    return res.redirect('/admin?msg=dup#nodes');
-  }
-
-  db.addAuditLog(req.user.id, 'node_deploy_start', `开始部署: ${host}${socks5_host ? ' (socks5→' + socks5_host + ')' : ''}`, req.ip);
-
-  deployService.deployNode({
-    host, ssh_port: parseInt(ssh_port) || 22, ssh_user: ssh_user || 'root', ssh_password,
-    socks5_host: socks5_host || null, socks5_port: parseInt(socks5_port) || 1080,
-    socks5_user: socks5_user || null, socks5_pass: socks5_pass || null,
-    triggered_by: req.user.id
-  }, db).catch(err => console.error('[部署异常]', err));
-
-  res.redirect('/admin?msg=deploying#nodes');
+  const result = startDeploy(req, 'vless');
+  if (result === 'invalid_host') return res.redirect('/admin?msg=invalid_host#nodes');
+  if (result === 'dup') return res.redirect('/admin?msg=dup#nodes');
+  if (!result) return res.redirect('/admin#nodes');
+  return res.redirect('/admin?msg=deploying#nodes');
 });
 
 router.post('/nodes/:id/delete', async (req, res) => {
