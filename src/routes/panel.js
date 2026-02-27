@@ -315,8 +315,6 @@ router.get('/sub/:token', subLimiter, (req, res) => {
   const totalBytes = trafficLimit > 0 ? trafficLimit : 1125899906842624; // 默认 1PB
   const exceeded = trafficLimit > 0 && (traffic.total_up + traffic.total_down) >= trafficLimit;
 
-  db.addAuditLog(user.id, 'sub_fetch', `订阅拉取 [${clientType}] IP: ${clientIP}`, clientIP);
-
   // 流量超额则返回空节点列表
   const finalNodes = exceeded ? [] : userNodes;
   const subInfo = `upload=${traffic.total_up}; download=${traffic.total_down}; total=${totalBytes}; expire=0`;
@@ -401,8 +399,6 @@ router.get('/sub6/:token', subLimiter, (req, res) => {
   const trafficLimit = user.traffic_limit || 0;
   const totalBytes = trafficLimit > 0 ? trafficLimit : 1125899906842624;
   const exceeded = trafficLimit > 0 && (traffic.total_up + traffic.total_down) >= trafficLimit;
-
-  db.addAuditLog(user.id, 'sub6_fetch', `IPv6订阅拉取 [${clientType}] IP: ${clientIP}`, clientIP);
 
   const finalNodes = exceeded ? [] : nodes;
   const subInfo = `upload=${traffic.total_up}; download=${traffic.total_down}; total=${totalBytes}; expire=0`;
@@ -515,15 +511,18 @@ router.get('/donate', requireAuth, (req, res) => {
   `).all(user.id);
 
   // 生成或获取用户的捐赠 token
-  // 如果已有 token 且未被使用（无 node_donations 记录），复用它
-  // 如果已有 token 但已被使用，生成新的
-  const tokenRecords = d.prepare('SELECT * FROM donate_tokens WHERE user_id = ? ORDER BY created_at DESC').all(user.id);
-  let donateToken;
-  const unusedToken = tokenRecords.find(t => !d.prepare('SELECT id FROM node_donations WHERE token = ?').get(t.token));
-  if (unusedToken) {
-    donateToken = unusedToken.token;
-  } else {
-    donateToken = 'donate-' + uuidv4();
+  // 优先复用“未被使用”的 token，避免 N+1 查询
+  const unusedToken = d.prepare(`
+    SELECT dt.token
+    FROM donate_tokens dt
+    LEFT JOIN node_donations nd ON nd.token = dt.token
+    WHERE dt.user_id = ? AND nd.id IS NULL
+    ORDER BY dt.created_at DESC
+    LIMIT 1
+  `).get(user.id);
+
+  const donateToken = unusedToken?.token || ('donate-' + uuidv4());
+  if (!unusedToken) {
     d.prepare("INSERT INTO donate_tokens (user_id, token, created_at) VALUES (?, ?, datetime('now', 'localtime'))").run(user.id, donateToken);
   }
 

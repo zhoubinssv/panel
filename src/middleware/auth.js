@@ -38,8 +38,10 @@ function setupAuth(app) {
         return done(null, false, { message: '账号已被封禁' });
       }
 
-      // 异步同步节点配置（新用户需要把 UUID 推送到节点）
-      emitSyncAll();
+      // 仅在新用户注册或用户解冻时同步节点配置，避免每次登录都触发全量同步
+      if (!existing || user._wasFrozen) {
+        emitSyncAll();
+      }
 
       return done(null, user);
     } catch (err) {

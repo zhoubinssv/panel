@@ -2,7 +2,6 @@ const express = require('express');
 const crypto = require('crypto');
 const passport = require('passport');
 const db = require('../services/database');
-const { emitSyncAll } = require('../services/configEvents');
 
 const router = express.Router();
 
@@ -26,8 +25,6 @@ router.get('/nodeloc', (req, res, next) => {
 });
 
 // OAuth 回调
-const { notify } = require('../services/notify');
-
 router.get('/callback', (req, res, next) => {
   passport.authenticate('nodeloc', (err, user, info) => {
     if (err) {
@@ -42,10 +39,6 @@ router.get('/callback', (req, res, next) => {
       if (err) return res.redirect('/auth/login?error=' + encodeURIComponent('登录失败'));
       const loginIP = req.headers['cf-connecting-ip'] || req.headers['x-real-ip'] || req.ip;
       db.addAuditLog(user.id, 'login', `用户 ${user.username} 登录`, loginIP);
-      // 如果用户刚被解冻，异步同步节点配置
-      if (user._wasFrozen) {
-        emitSyncAll();
-      }
       res.redirect('/');
     });
   })(req, res, next);

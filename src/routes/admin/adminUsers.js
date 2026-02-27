@@ -82,8 +82,6 @@ router.post('/users/:id/set-expiry', (req, res) => {
   res.json({ ok: true });
 });
 
-module.exports = router;
-
 // 用户综合详情（流量排行点击查看）
 router.get('/users/:id/detail', (req, res) => {
   const id = parseInt(req.params.id);
@@ -116,3 +114,5 @@ router.get('/users/:id/detail', (req, res) => {
 
   res.json({ info, todayTraffic, totalTraffic, subAccess, dailyTraffic });
 });
+
+module.exports = router;
