@@ -1,21 +1,10 @@
 const express = require('express');
-const net = require('net');
 const db = require('../../services/database');
 const deployService = require('../../services/deploy');
 const agentWs = require('../../services/agent-ws');
 const { emitSyncAll, emitSyncNode } = require('../../services/configEvents');
-
-function parseIntId(raw) {
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-const DOMAIN_RE = /^(?=.{1,253}$)(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$/;
-function isValidHost(host) {
-  if (typeof host !== 'string') return false;
-  const h = host.trim();
-  return net.isIP(h) !== 0 || DOMAIN_RE.test(h);
-}
+const { parseIntId } = require('../../utils/parseIntId');
+const { isValidHost } = require('../../utils/hostValidator');
 
 const router = express.Router();
 

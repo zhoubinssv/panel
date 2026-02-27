@@ -222,9 +222,11 @@ router.get('/api/peach-status', requireAuth, (req, res) => {
 });
 
 // 当前登录用户订阅二维码（便于手机扫码）
-router.get('/sub-qr', requireAuth, async (req, res) => {
+async function sendSubQr(req, res, type = 'v4') {
   try {
-    const subUrl = `${req.protocol}://${req.get('host')}/sub/${req.user.sub_token}`;
+    const isV6 = type === 'v6';
+    const subPath = isV6 ? 'sub6' : 'sub';
+    const subUrl = `${req.protocol}://${req.get('host')}/${subPath}/${req.user.sub_token}`;
     const png = await QRCode.toBuffer(subUrl, {
       width: 300,
       margin: 1,
@@ -236,30 +238,18 @@ router.get('/sub-qr', requireAuth, async (req, res) => {
     });
     res.send(png);
   } catch (e) {
-    console.error('[二维码] 生成失败:', e.message);
+    console.error(`[二维码] ${type === 'v6' ? 'IPv6' : '默认'}生成失败:`, e.message);
     res.status(500).send('二维码生成失败');
   }
+}
+
+router.get('/sub-qr/:type?', requireAuth, async (req, res) => {
+  const type = (req.params.type || '').toLowerCase();
+  return sendSubQr(req, res, type === '6' || type === 'v6' ? 'v6' : 'v4');
 });
 
-// IPv6 订阅二维码
-router.get('/sub6-qr', requireAuth, async (req, res) => {
-  try {
-    const subUrl6 = `${req.protocol}://${req.get('host')}/sub6/${req.user.sub_token}`;
-    const png = await QRCode.toBuffer(subUrl6, {
-      width: 300,
-      margin: 1,
-      errorCorrectionLevel: 'M'
-    });
-    res.set({
-      'Content-Type': 'image/png',
-      'Cache-Control': 'no-store'
-    });
-    res.send(png);
-  } catch (e) {
-    console.error('[二维码] IPv6生成失败:', e.message);
-    res.status(500).send('二维码生成失败');
-  }
-});
+// 兼容旧路径
+router.get('/sub6-qr', requireAuth, async (req, res) => sendSubQr(req, res, 'v6'));
 
 // 订阅接口（每个用户返回自己的 UUID）
 router.get('/sub/:token', subLimiter, (req, res) => {

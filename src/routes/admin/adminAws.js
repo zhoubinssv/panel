@@ -3,11 +3,7 @@ const db = require('../../services/database');
 const aws = require('../../services/aws');
 const deployService = require('../../services/deploy');
 const { notify } = require('../../services/notify');
-
-function parseIntId(raw) {
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
+const { parseIntId } = require('../../utils/parseIntId');
 
 const router = express.Router();
 

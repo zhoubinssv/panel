@@ -1,23 +1,10 @@
 const express = require('express');
-const net = require('net');
-const db = require('../services/database');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { parseIntId } = require('../utils/parseIntId');
+const { isValidHost } = require('../utils/hostValidator');
 
 const router = express.Router();
 router.use(requireAuth, requireAdmin);
-
-// 校验工具（共享给子路由）
-function parseIntId(raw) {
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-const DOMAIN_RE = /^(?=.{1,253}$)(?!-)(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$/;
-function isValidHost(host) {
-  if (typeof host !== 'string') return false;
-  const h = host.trim();
-  return net.isIP(h) !== 0 || DOMAIN_RE.test(h);
-}
 
 // 挂载子路由
 router.use('/', require('./admin/adminWhitelist'));
