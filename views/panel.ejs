@@ -128,7 +128,12 @@
           if (!_groups[g]) _groups[g] = [];
           _groups[g].push(n);
         });
-        const _groupNames = Object.keys(_groups).sort((a, b) => a.includes('小姨子') ? -1 : b.includes('小姨子') ? 1 : a.localeCompare(b));
+        const _groupNames = Object.keys(_groups).sort((a, b) => {
+          const order = ['捐赠节点', '小姨子'];
+          const ai = order.indexOf(a) === -1 ? 99 : order.indexOf(a);
+          const bi = order.indexOf(b) === -1 ? 99 : order.indexOf(b);
+          return ai - bi || a.localeCompare(b);
+        });
       %>
       <% _groupNames.forEach(gName => { %>
         <% if (_groupNames.length > 1) { %>
