@@ -73,6 +73,12 @@
         <p class="text-gray-600 text-[11px]" id="proto-hint">VLESS Reality 协议，使用服务器的 IPv4 地址</p>
       </div>
 
+      <!-- NAT 选项 -->
+      <div class="space-y-2">
+        <p class="text-gray-400 text-xs">网络类型：</p>
+        <button onclick="toggleNat()" id="nat-toggle" class="proto-btn text-xs px-4 py-2 rounded-xl transition font-medium">🧱 NAT 机器（仅轮换 UUID，不轮换端口）</button>
+      </div>
+
       <pre class="cmd-box rounded-xl p-4 text-green-400 text-xs overflow-x-auto whitespace-pre-wrap break-all select-all" id="install-cmd"><%= installCmd %></pre>
       <div class="flex items-center gap-3 mt-3">
         <button onclick="copyCmd()" class="copy-cta text-sm px-5 py-2.5 rounded-xl text-white font-medium transition" id="copy-btn">📋 复制命令</button>
@@ -185,6 +191,7 @@
       dual: '同时部署 VLESS (IPv4) + Shadowsocks (IPv6)，需要服务器同时有 IPv4 和 IPv6'
     };
     let currentProto = '<%= protocolChoice || "vless" %>';
+    let natMode = <%= natMode ? 'true' : 'false' %>;
 
     function setProtocol(proto) {
       currentProto = proto;
@@ -198,7 +205,19 @@
       fetch('/donate/set-protocol', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ protocol: proto, token: '<%= donateToken %>' })
+        body: JSON.stringify({ protocol: proto, token: '<%= donateToken %>', natMode })
+      });
+    }
+
+
+    function toggleNat() {
+      natMode = !natMode;
+      const btn = document.getElementById('nat-toggle');
+      btn.classList.toggle('proto-active', natMode);
+      fetch('/donate/set-protocol', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ protocol: currentProto, token: '<%= donateToken %>', natMode })
       });
     }
 
@@ -229,6 +248,7 @@
 
     // 页面加载时恢复选择
     if (currentProto !== 'vless') setProtocol(currentProto);
+    if (natMode) document.getElementById('nat-toggle')?.classList.add('proto-active');
   </script>
 </body>
 </html>

@@ -527,9 +527,10 @@ router.get('/donate', requireAuth, (req, res) => {
     d.prepare("INSERT INTO donate_tokens (user_id, token, created_at) VALUES (?, ?, datetime('now', 'localtime'))").run(user.id, donateToken);
   }
 
-  // 读取当前token的协议选择
-  const tokenRow = d.prepare('SELECT protocol_choice FROM donate_tokens WHERE token = ?').get(donateToken);
+  // 读取当前token的协议/NAT选项
+  const tokenRow = d.prepare('SELECT protocol_choice, nat_mode FROM donate_tokens WHERE token = ?').get(donateToken);
   const protocolChoice = tokenRow?.protocol_choice || 'vless';
+  const natMode = Number(tokenRow?.nat_mode || 0) === 1;
 
   const wsUrl = process.env.AGENT_WS_URL || 'wss://vip.vip.sd/ws/agent';
   const installCmd = `bash <(curl -sL https://vip.vip.sd/donate/install.sh) ${wsUrl} ${donateToken} ${protocolChoice}`;
@@ -544,17 +545,18 @@ router.get('/donate', requireAuth, (req, res) => {
     GROUP BY nd.user_id ORDER BY count DESC LIMIT 10
   `).all();
 
-  res.render('donate', { user, donations, donateToken, installCmd, donors, protocolChoice });
+  res.render('donate', { user, donations, donateToken, installCmd, donors, protocolChoice, natMode });
 });
 
-// 保存协议选择
+// 保存协议/NAT 选项
 router.post('/donate/set-protocol', requireAuth, (req, res) => {
-  const { protocol, token } = req.body;
+  const { protocol, token, natMode } = req.body;
   if (!['vless', 'ss', 'dual'].includes(protocol)) return res.json({ ok: false, error: '无效协议' });
+  const nat = natMode ? 1 : 0;
   const d = db.getDb();
-  d.prepare('UPDATE donate_tokens SET protocol_choice = ? WHERE token = ? AND user_id = ?').run(protocol, token, req.user.id);
+  d.prepare('UPDATE donate_tokens SET protocol_choice = ?, nat_mode = ? WHERE token = ? AND user_id = ?').run(protocol, nat, token, req.user.id);
   // 同步更新到 node_donations（如果已有连接记录）
-  d.prepare('UPDATE node_donations SET protocol_choice = ? WHERE token = ? AND user_id = ?').run(protocol, token, req.user.id);
+  d.prepare('UPDATE node_donations SET protocol_choice = ?, nat_mode = ? WHERE token = ? AND user_id = ?').run(protocol, nat, token, req.user.id);
   res.json({ ok: true });
 });
 

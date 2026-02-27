@@ -352,6 +352,7 @@ function initTables() {
       server_ip TEXT,
       region TEXT,
       remark TEXT,
+      nat_mode INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       approved_at TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id),
@@ -365,6 +366,7 @@ function initTables() {
       user_id INTEGER NOT NULL,
       token TEXT UNIQUE NOT NULL,
       protocol_choice TEXT DEFAULT 'vless',
+      nat_mode INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       PRIMARY KEY (token)
     )
@@ -374,6 +376,14 @@ function initTables() {
   const donateTokenCols = db.prepare("PRAGMA table_info(donate_tokens)").all().map(c => c.name);
   if (!donateTokenCols.includes('protocol_choice')) {
     try { db.exec("ALTER TABLE donate_tokens ADD COLUMN protocol_choice TEXT DEFAULT 'vless'"); } catch(_) {}
+  }
+  if (!donateTokenCols.includes('nat_mode')) {
+    try { db.exec("ALTER TABLE donate_tokens ADD COLUMN nat_mode INTEGER DEFAULT 0"); } catch(_) {}
+  }
+
+  const donationCols = db.prepare("PRAGMA table_info(node_donations)").all().map(c => c.name);
+  if (!donationCols.includes('nat_mode')) {
+    try { db.exec("ALTER TABLE node_donations ADD COLUMN nat_mode INTEGER DEFAULT 0"); } catch(_) {}
   }
 
   // Sprint 7: 清理废弃 AI 表
@@ -454,6 +464,9 @@ function initTables() {
   }
   if (!nodeCols2.includes('is_donation')) {
     try { db.exec("ALTER TABLE nodes ADD COLUMN is_donation INTEGER DEFAULT 0"); } catch(_){}
+  }
+  if (!nodeCols2.includes('rotate_port_locked')) {
+    try { db.exec("ALTER TABLE nodes ADD COLUMN rotate_port_locked INTEGER DEFAULT 0"); } catch(_){}
   }
 
   // Sprint 6 迁移：用户到期时间

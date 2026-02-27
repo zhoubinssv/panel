@@ -11,6 +11,10 @@ async function rotateCore() {
   console.log(`[轮换开始] 活跃节点 ${allActiveNodes.length} 个，其中参与轮换 ${nodes.length} 个（已排除手动节点）`);
 
   for (const node of nodes) {
+    if (node.rotate_port_locked) {
+      db.updateNode(node.id, { last_rotated: new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 19).replace('T', ' ') });
+      continue;
+    }
     const portMin = parseInt(db.getSetting('rotate_port_min')) || 10000;
     const portMax = parseInt(db.getSetting('rotate_port_max')) || 60000;
     db.updateNodeAfterRotation(node.id, node.uuid, randomPort(portMin, portMax));
