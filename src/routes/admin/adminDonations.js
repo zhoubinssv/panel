@@ -3,6 +3,9 @@ const router = express.Router();
 const db = require('../../services/database');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
+const deployService = require('../../services/deploy');
+const uuidRepo = require('../../services/repos/uuidRepo');
+const agentWs = require('../../services/agent-ws');
 
 // 生成 Reality x25519 密钥对
 function generateRealityKeys() {
@@ -44,8 +47,7 @@ router.post('/donations/:id/approve', async (req, res) => {
     let region = donation.region || '';
     if (!region && donation.server_ip) {
       try {
-        const { detectRegion } = require('../../services/deploy');
-        const geo = await detectRegion(donation.server_ip);
+        const geo = await deployService.detectRegion(donation.server_ip);
         if (geo && geo.cityCN !== '未知') region = `${geo.emoji} ${geo.cityCN}`;
       } catch {}
     }
@@ -54,9 +56,6 @@ router.post('/donations/:id/approve', async (req, res) => {
     const donor = d.prepare('SELECT username, name FROM users WHERE id = ?').get(donation.user_id);
     const donorName = donor ? (donor.name || donor.username) : `用户${donation.user_id}`;
 
-    const uuidRepo = require('../../services/repos/uuidRepo');
-    const deploy = require('../../services/deploy');
-    const agentWs = require('../../services/agent-ws');
     const nodeIds = [];
 
     // ─── 根据协议选择创建节点 ───
@@ -85,7 +84,6 @@ router.post('/donations/:id/approve', async (req, res) => {
       // 创建 SS (IPv6) 节点
       // 通过 Agent 检测 IPv6 地址
       let ipv6Addr = null;
-      const donateEntry = d.prepare('SELECT node_id FROM node_donations WHERE id = ?').get(donation.id);
       // 尝试从已连接的 Agent 获取 IPv6
       // 先找到 Agent 连接（用捐赠 token 查找）
       const connectedAgents = agentWs.getConnectedAgents();
@@ -148,7 +146,7 @@ router.post('/donations/:id/approve', async (req, res) => {
     try {
       for (const nid of nodeIds) {
         const newNode = db.getNodeById(nid);
-        const syncOk = await deploy.syncNodeConfig(newNode, db);
+        const syncOk = await deployService.syncNodeConfig(newNode, db);
         console.log(`[捐赠审核] 配置推送 ${syncOk ? '成功' : '失败'}: ${newNode.name}`);
       }
     } catch (syncErr) {
